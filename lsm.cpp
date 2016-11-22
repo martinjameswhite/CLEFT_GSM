@@ -325,47 +325,6 @@ LSM::interpEfuncs(const double q) {
 }
 
 void
-LSM::old_setupQR() {
-    // Set up the Q and R's that we need.  We zero pad these out
-    // to the maximum kLin.
-    const int NkTemp=250;
-    std::vector<double> ka(NkTemp),R1(NkTemp),R2(NkTemp);
-    std::vector<double> Q1(NkTemp),Q2(NkTemp),Q5(NkTemp),Q8(NkTemp);
-    const double kswitch=6.0,kdamp=3.00;
-    if (exp(kLin[kLin.size()-1])<=kswitch) {
-      std::cout<<"Power spectrum file does not go to high enough k."<<std::endl;
-      myexit(666);
-    }
-#pragma omp parallel for
-    for (int i=1; i<NkTemp; ++i) {
-      double kk = exp( kLin[0]+i*(log(kswitch)-kLin[0])/(NkTemp-1) );
-      double dd = exp(-(kk/kdamp)*(kk/kdamp));
-      std::vector<double> Qn=lpt.Qn(kk);
-      std::vector<double> Rn=lpt.Rn(kk);
-      ka[i]=kk; R1[i]=Rn[0]*dd; R2[i]=Rn[1]*dd;
-      Q1[i]=Qn[1]*dd; Q2[i]=Qn[2]*dd; Q5[i]=Qn[5]*dd; Q8[i]=Qn[8]*dd;
-    }
-    if (exp(kLin[kLin.size()-1])>kswitch)
-      for (int i=0; i<8; ++i) {
-        double kk = kswitch + (i+1)*(exp(kLin[kLin.size()-1])-kswitch)/8.0;
-        ka.push_back(kk);
-        R1.push_back(0.);
-        R2.push_back(0.);
-        Q1.push_back(0.);
-        Q2.push_back(0.);
-        Q5.push_back(0.);
-        Q8.push_back(0.);
-      }
-    // and fit splines to them.
-    R1spl.init(ka,R1);
-    R2spl.init(ka,R2);
-    Q1spl.init(ka,Q1);
-    Q2spl.init(ka,Q2);
-    Q5spl.init(ka,Q5);
-    Q8spl.init(ka,Q8);
-}
-
-void
 LSM::setupQR() {
     // Set up the Q and R's that we need, apodized.
     const int NkTemp=250;
