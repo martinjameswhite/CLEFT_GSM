@@ -49,19 +49,8 @@ protected:
     std::vector<double> interpEfuncs(const double q);
     void setupQR();
 
-    // This is called something other than xiContributions so that we
-    // still have access to the Zeldovich method.
-    std::vector<double> dpair(const double rval);
-
-    // Need to either overload v12, or define something "else".  I
-    // choose to define something else, since we may want the ability
-    // to switch to v12_Z later for some reason.
-    std::vector<double> vpair(const double rval);
-
-    // Need to either overload s12, or define something "else".  I
-    // choose to define something else, since we may want the ability
-    // to switch to s12_Z later for some reason.
-    std::vector<double> spair(const double rval);
+    // dpair, vpair, spair.
+    std::vector<std::vector<double>> dvsPair(const double rval);
 };
 
 #endif

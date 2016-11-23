@@ -351,422 +351,293 @@ LSM::setupQR() {
     Qsspl.init(ka,Qs);
 }
 
-std::vector<double>
-LSM::dpair(const double rval) {
-    // Returns the different contributions to the real-space correlation
-    // function for locally biased tracers.
-    // This has an abbreviated name so that it doesn't overload the Zeldovich
-    // version, allowing comparison and easy switching.
-    // This is not tested for very large or small values of r.
-    // The integration is over x=q-r, in length and angle with the
-    // azimuthal integral being trivial.
+
+// Returns the different contributions to the real-space correlation function (component 0)
+// mean infall velocity (component 1), and the velocity dispersion (component 2)
+// for locally biased tracers.
+// For mean infall velocity (component 1) only the line-of-sight component is returned
+// and the result should be multiplied by f and divided by 1+xi(real).
+// For velocity dispersion (component 2) both sigma_perp and sigma_par are returned
+// and the result should be multiplied by f^2 and divided by 1+xi(real). NOTE we return
+// parallel then perpendicular/transverse.
+// This is not tested for very large or small values of r.
+// The integration is over x=q-r, in length and angle with the
+// azimuthal integral being trivial.
+std::vector<std::vector<double>>
+LSM::dvsPair(const double rval)
+{
     const double xmin=0;
     const double xmax=10*sqrt(sigma2);
     const double rr[3]={0,0,rval};
     const double r2   =rval*rval;
     const int    Nx=500;
     const double dx=(xmax-xmin)/Nx;
+
     std::vector<double> xi(12);
-    for (int ixx=0; ixx<Nx; ++ixx) {
-      double xx=xmin+(ixx+0.5)*dx;
-      double x2=xx*xx;
-      for (int imu=0; imu<gl.N; ++imu) {
-        double mu = gl.x[imu];
-        // Compute vec{q}=vec{r}+vec{x} with vec{r}=r.zhat,
-        // so r_z=r, x_z=x*mu, cos_rq=(r_z+x_z)/q.
-        double qlen = sqrt(r2+x2+2*rval*xx*mu);
-        double qcos = (rval+xx*mu)/qlen;
-        double qsin = sqrt(1-qcos*qcos);
-        double qq[3] ={qlen*qsin,0,qlen*qcos};
-        double qh[3] ={     qsin,0,     qcos};
-        if (qlen>qmin && qlen<qmax) {
-          // We keep the Zeldovich piece exponentiated and expand down
-          // the 1-loop piece.
-          double pref = x2 * zeldovichIntegrand(rr,qq,0) * gl.w[imu];
-          // For the bias terms, compute U,xi and Ainv (even though in above).
-          std::vector<double> qf  =interpQfuncs(qlen);
-          std::vector<double> ef  =interpEfuncs(qlen);
-          std::vector<double> Ainv=calcAinv(qq);
-          std::vector<double> Aloop(9);
-          double Xloop=ef[1]+2*ef[2],Yloop=ef[4]+2*ef[5];
-          for (int i=0; i<3; ++i)
-            for (int j=i; j<3; ++j) {
-              Aloop[3*i+j] = Aloop[3*j+i]  = Yloop*qh[i]*qh[j];
-              if (i==j)      Aloop[3*i+i] += Xloop;
-            }
-          double xiL=qf[3];
-          // Construct the auxilliary matrix/vectors g, G of CLPT Eq. (45)
-          // and Gamma of Eq. (75).
-          double g[3],UL[3],U[3],U20[3],U11[3],G[9];
-          for (int i=0; i<3; ++i) {
-            g[i]=0;
-            for (int j=0; j<3; ++j)
-              g[i] += Ainv[3*i+j]*(qq[j]-rr[j]);
-            UL[i] = ef[11]*qh[i];
-            U[ i] =(ef[11]+ef[12])*qh[i];
-            U20[i]=ef[13]*qh[i];
-            U11[i]=ef[14]*qh[i];
-          }
-          for (int i=0; i<3; ++i)
-            for (int j=0; j<3; ++j)
-              G[3*i+j]=Ainv[3*i+j]-g[i]*g[j];
-          double GA=0;
-          for (int i=0; i<3; ++i)
-            for (int j=0; j<3; ++j)
-              GA += Aloop[3*i+j]*G[3*i+j];
-          double GW=0;
-          double V1=ef[8];
-          double V3=ef[9];
-          double Tq=ef[10];
-          for (int i=0; i<3; ++i) {
-            for (int j=0; j<3; ++j) {
-              for (int k=0; k<3; ++k) {
-                double Gam,W;
-                Gam = Ainv[3*i+j]*g[k]+Ainv[3*k+i]*g[j]+Ainv[3*j+k]*g[i]
-                    - g[i]*g[j]*g[k];
-                W   = Tq*qh[i]*qh[j]*qh[k];
-                if (j==k) W += V1*qh[i];
-                if (i==k) W += V1*qh[j];
-                if (i==j) W += V3*qh[k];
-                GW += Gam*W;
-              }
-            }
-          }
-          GW *= 3;	// Account for permutations.
-          double trG,Ug,ULg,gq;  trG=Ug=ULg=gq=0;
-          for (int i=0; i<3; ++i) {
-            gq += g[i]*qh[i];
-            ULg+=UL[i]*g[i];
-            Ug += U[i]*g[i];
-            trG+= G[3*i+i];
-          }
-          double U20g=0,U11g=0;
-          for (int i=0; i<3; ++i) {
-            U20g += U20[i]*g[i];
-            U11g += U11[i]*g[i];
-          }
-          double UUG=0,qqG=0;
-          for (int i=0; i<3; ++i)
-            for (int j=0; j<3; ++j) {
-              UUG += G[3*i+j]*UL[i]*UL[j];
-              qqG += G[3*i+j]*qh[i]*qh[j];
-            }
-          double A10G=2*trG*ef[6] + 2*qqG*ef[7];
-          double d2xiLin=qf[5];
-          // The mode-coupling term, then add the <s^2 Delta Delta> term:
-          double shear=ef[15]*gq;
-          for (int i=0; i<3; ++i)
-            for (int j=0; j<3; ++j) {
-              double upsilon= qh[i]*qh[j]*(3*qf[6]*qf[6]+4*qf[6]*qf[7]+
-                              2*qf[6]*qf[8]+2*qf[7]*qf[7]+4*qf[7]*qf[8]+
-                              qf[8]*qf[8]) + (i==j)*2*qf[7]*qf[7];
-              shear += G[3*i+j]*upsilon;
-            }
-          shear *= 2;
-          double V12=qf[9]*gq;
-          // Now do the 1, Fp, Fpp, Fp^2, Fp.Fpp, Fpp^2, b_nabla^2,
-          // bs, b1.bs2, b2.bs2, bs2^2 terms.
-          xi[ 0] +=   pref *(1-GA/2.+GW/6.); // +Aeft*trG*eftNorm);
-          xi[ 1] +=  -pref *(2*Ug+A10G);
-          xi[ 2] +=  -pref *(UUG+U20g);
-          xi[ 3] +=   pref *(xiL-UUG-U11g);
-          xi[ 4] +=  -pref *(2*xiL*ULg);
-          xi[ 5] +=   pref *xiL*xiL/2;
-          xi[ 6] +=  -pref *0.5*trG;
-          xi[ 7] +=   pref *d2xiLin;
-          xi[ 8] +=  -pref *shear;
-          xi[ 9] +=  -pref *2*V12;
-          xi[10] +=   pref *qf[10];
-          xi[11] +=   pref *qf[11];
-        }
-      }
-    }
-    for (int j=0; j<xi.size(); ++j) {
-      xi[j] *= dx;      // Convert sum to integral.
-      xi[j] *= 2*M_PI;  // The azimuthal integral.
-    }
-    xi[0] -= 1.0;	// Calculated 1+xi, subtract 1 for xi.
-    return(xi);
-}
-
-std::vector<double>
-LSM::vpair(const double rval) {
-    // Returns the different contributions to the mean infall velocity
-    // for locally biased tracers.  Only the line-of-sight component is
-    // returned and the result should be multiplied by f and divided by
-    // 1+xi(real).
-    // This is not tested for very large or small values of r.
-    // The integration is over x=q-r, in length and angle with the
-    // azimuthal integral being trivial.
-    const double xmin=0;
-    const double xmax=10*sqrt(sigma2);
-    const double rr[3]={0,0,rval};
-    const double r2   =rval*rval;
-    const int    Nx=500;
-    const double dx=(xmax-xmin)/Nx;
     std::vector<double> vv(10);
-    for (int ixx=0; ixx<Nx; ++ixx) {
-      double xx=xmin+(ixx+0.5)*dx;
-      double x2=xx*xx;
-      for (int imu=0; imu<gl.N; ++imu) {
-        double mu = gl.x[imu];
-        // Compute vec{q}=vec{r}+vec{x} with vec{r}=r.zhat,
-        // so r_z=r, x_z=x*mu, cos_rq=(r_z+x_z)/q.
-        double qlen = sqrt(r2+x2+2*rval*xx*mu);
-        double qcos = (rval+xx*mu)/qlen;
-        double qsin = sqrt(1-qcos*qcos);
-        double qq[3] ={qlen*qsin,0,qlen*qcos};
-        double qh[3] ={     qsin,0,     qcos};
-        if (qlen>qmin && qlen<qmax) {
-          // We keep the Zeldovich piece exponentiated and expand down
-          // the 1-loop piece.
-          double pref = x2 * zeldovichIntegrand(rr,qq,0) * gl.w[imu];
-          // For the bias terms, compute U,xi and Ainv (even though in above).
-          std::vector<double> qf  =interpQfuncs(qlen);
-          std::vector<double> ef  =interpEfuncs(qlen);
-          std::vector<double> Ainv=calcAinv(qq);
-          std::vector<double> Alin(9);
-          std::vector<double> Adot(9);
-          std::vector<double> Aloop(9);
-          double Xdot=ef[0]+2*ef[1]+4*ef[2],Ydot=ef[3]+2*ef[4]+4*ef[5];
-          for (int i=0; i<3; ++i)
-            for (int j=0; j<3; ++j) {
-              Aloop[3*i+j] = (ef[4]+2*ef[5])*qh[i]*qh[j]+(ef[1]+2*ef[2])*(i==j);
-              Adot[ 3*i+j] = Ydot*qh[i]*qh[j]+Xdot*(i==j);
-              Alin[ 3*i+j] = ef[3]*qh[i]*qh[j]+ef[0]*(i==j);
-            }
-          double xiL=qf[3];
-          // Construct the auxilliary matrix/vectors g, G of CLPT Eq. (45)
-          // and Gamma of Eq. (75).
-          double g[3],UL[3],U[3],Udot[3],U20[3],U11[3],G[9];
-          for (int i=0; i<3; ++i) {
-            g[i]=0;
-            for (int j=0; j<3; ++j)
-              g[i] += Ainv[3*i+j]*(qq[j]-rr[j]);
-            UL[i]    = ef[11]*qh[i];
-            U[ i]    =(ef[11]+  ef[12])*qh[i];
-            Udot[i]  =(ef[11]+3*ef[12])*qh[i];
-            U20[i]   = 2*ef[13]*qh[i];
-            U11[i]   = 2*ef[14]*qh[i];
-          }
-          for (int i=0; i<3; ++i)
-            for (int j=0; j<3; ++j)
-              G[3*i+j]=Ainv[3*i+j]-g[i]*g[j];
-          double GA=0;
-          for (int i=0; i<3; ++i)
-            for (int j=0; j<3; ++j)
-              GA += Aloop[3*i+j]*G[3*i+j];
-          double trG,Ug,gq,qG,gA,UGA,qGq;  trG=Ug=gq=qG=gA=UGA=qGq=0;
-          double ULg=0,gAL=0;
-          for (int i=0; i<3; ++i) {
-            gq += g[i]*qh[i];
-            gA += g[i]*Adot[3*2+i];
-            gAL+= g[i]*Alin[3*2+i];
-            Ug += U[i]*g[i];
-            ULg+=UL[i]*g[i];
-            qG += qh[i]*G[3*2+i];
-            trG+= G[3*i+i];
-            for (int j=0; j<3; ++j) {
-              UGA += UL[i]*G[3*i+j]*Alin[3*2+j];
-              qGq += qh[i]*G[3*i+j]*qh[j];
-            }
-          }
-          double gA10=3*(ef[6]*g[2]+ef[7]*gq*qh[2]);
-          double V1=ef[8];
-          double V3=ef[9];
-          double Tq=ef[10];
-          double GW=0;
-          for (int i=0; i<3; ++i)
-            for (int j=0; j<3; ++j) {
-              double Wdot_ijn=(3*V1+V3)*(qh[i]*(j==2)+qh[j]*(i==2))+
-                              2*(V1+V3)*qh[2]*(i==j)+
-                              4*Tq*qh[i]*qh[j]*qh[2];
-              GW += G[3*i+j]*Wdot_ijn;
-            }
-          // The mode-coupling term, then add the <s^2 Delta Delta> term:
-          double shear=2*ef[15]*g[2];
-          for (int i=0; i<3; ++i) {
-            double upsilon= qh[i]*qh[2]*(3*qf[6]*qf[6]+4*qf[6]*qf[7]+
-                            2*qf[6]*qf[8]+2*qf[7]*qf[7]+4*qf[7]*qf[8]+
-                            qf[8]*qf[8]) + (i==2)*2*qf[7]*qf[7];
-            shear -= g[i]*upsilon;
-          }
-          shear *= 2;
-          double V12=1*qf[9]*gq;
-          // Now do the 1, Fp, Fpp, Fp^2, Fp.Fpp, Fpp^2, grad_xi, g_los,
-          // bs2 terms.
-          vv[0] +=   -pref *(gA+0.5*GW);
-          vv[1] +=  2*pref *(Udot[2]-UGA-gA10);
-          vv[2] +=    pref *(U20[2]-2*ULg*UL[2]);
-          vv[3] +=   -pref *(ULg*UL[2]+ULg*UL[2]+xiL*gAL-U11[2]);
-          vv[4] +=  2*pref *xiL*UL[2];
-          vv[5] +=  0;
-          vv[6] +=    pref *qf[4];
-          vv[7] +=    pref *g[2];
-          vv[8] +=    pref *shear;
-          vv[9] +=    pref *V12;
-        }
-      }
-    }
-    for (int j=0; j<vv.size(); ++j) {
-      vv[j] *= dx;      // Convert sum to integral.
-      vv[j] *= 2*M_PI;  // The azimuthal integral.
-    }
-    return(vv);
-}
-
-std::vector<double>
-LSM::spair(const double rval) {
-    // Returns the different contributions to the velocity dispersion
-    // for locally biased tracers.  Both sigma_perp and sigma_par are
-    // returned and the result should be multiplied by f^2 and divided by
-    // 1+xi(real).  Beware the ordering here!!
-    // This is not tested for very large or small values of r.
-    // The integration is over x=q-r, in length and angle with the
-    // azimuthal integral being trivial.
-    const double xmin=0;
-    const double xmax=10*sqrt(sigma2);
-    const double rr[3]={0,0,rval};
-    const double r2   =rval*rval;
-    const int    Nx=500;
-    const double dx=(xmax-xmin)/Nx;
     std::vector<double> ss(16);
+
     for (int ixx=0; ixx<Nx; ++ixx) {
-      double xx=xmin+(ixx+0.5)*dx;
-      double x2=xx*xx;
-      for (int imu=0; imu<gl.N; ++imu) {
-        double mu = gl.x[imu];
-        // Compute vec{q}=vec{r}+vec{x} with vec{r}=r.zhat,
-        // so r_z=r, x_z=x*mu, cos_rq=(r_z+x_z)/q.
-        double qlen = sqrt(r2+x2+2*rval*xx*mu);
-        double qcos = (rval+xx*mu)/qlen;
-        double qsin = sqrt(1-qcos*qcos);
-        double qq[3] ={qlen*qsin,0,qlen*qcos};
-        double qh[3] ={     qsin,0,     qcos};
-        if (qlen>qmin && qlen<qmax) {
-          // For the unbiased tracers we only need this--all other terms
-          // are multiplied by this anyway.
-          double pref = x2 * zeldovichIntegrand(rr,qq,0) * gl.w[imu];
-          // For the bias terms compute U, xi and Ainv (even though in above).
-          std::vector<double> qf  =interpQfuncs(qlen);
-          std::vector<double> ef  =interpEfuncs(qlen);
-          std::vector<double> Ainv=calcAinv(qq);
-          std::vector<double> Alin(9);
-          std::vector<double> Adot(9);
-      std::vector<double> Addot(9);
-          std::vector<double> Aloop(9);
-          double Xdot =ef[0]+2*ef[1]+4*ef[2],Ydot =ef[3]+2*ef[4]+4*ef[5];
-          double Xddot=ef[0]+4*ef[1]+6*ef[2],Yddot=ef[3]+4*ef[4]+6*ef[5];
-          for (int i=0; i<3; ++i)
-            for (int j=0; j<3; ++j) {
-              Aloop[3*i+j] = (ef[4]+2*ef[5])*qh[i]*qh[j]+(ef[1]+2*ef[2])*(i==j);
-              Alin[ 3*i+j] = ef[3]*qh[i]*qh[j]+ef[0]*(i==j);
-              Adot[ 3*i+j] =  Ydot*qh[i]*qh[j]+ Xdot*(i==j);
-              Addot[3*i+j] = Yddot*qh[i]*qh[j]+Xddot*(i==j);
-            }
-          double xiL=qf[3];
-          // Construct the auxilliary matrix/vectors g, G of CLPT Eq. (45)
-          double g[3],UL[3],U[3],Udot[3],G[9],W[27],Wddot[27];
-          for (int i=0; i<3; ++i) {
-            g[i]=0;
-            for (int j=0; j<3; ++j)
-              g[i] += Ainv[3*i+j]*(qq[j]-rr[j]);
-            UL[i]   = ef[11]*qh[i];
-            U[ i]   =(ef[11]+  ef[12])*qh[i];
-            Udot[i] =(ef[11]+3*ef[12])*qh[i];
-          }
-          for (int i=0; i<3; ++i)
-            for (int j=0; j<3; ++j)
-              G[3*i+j]=Ainv[3*i+j]-g[i]*g[j];
-          for (int i=0; i<3; ++i)
-            for (int j=0; j<3; ++j)
-              for (int k=0; k<3; ++k)
-                W[9*i+3*j+k] = ef[8]*qh[i]*(j==k) + ef[8]*qh[j]*(i==k)
-                             + ef[9]*qh[k]*(i==j) +ef[10]*qh[i]*qh[j]*qh[k];
-          for (int i=0; i<3; ++i)
-            for (int j=0; j<3; ++j)
-              for (int k=0; k<3; ++k)
-                Wddot[9*i+3*j+k] = 2*W[9*i+3*j+k]+2*W[9*i+3*k+j]+W[9*k+3*j+i];
-          // We also need \ddot{A}^{10}:
-          double A10[9];
-          for (int i=0; i<3; ++i)
-            for (int j=0; j<3; ++j)
-                A10[3*i+j] = (4*ef[7])*qh[i]*qh[j] + (4*ef[6])*(i==j);
-          // Work out these dot products for n=m=2, i.e. along z, for sigma_par.
-          double Ug,ULg,U2,gA,gAL,gAU,AGA;  Ug=ULg=U2=gA=gAL=gAU=AGA=0;
-          for (int i=0; i<3; ++i) {
-            gA += g[i]*Adot[3*2+i];
-            gAL+= g[i]*Alin[3*2+i];
-            Ug += U[i]*g[i];
-            ULg+=UL[i]*g[i];
-            U2 +=UL[i]*UL[i];
-            for (int j=0; j<3; ++j) {
-              gAU += g[i]*Alin[3*i+j]*UL[j];
-              AGA += Alin[3*2+i]*G[3*i+j]*Alin[3*2+j];
-            }
-          }
-          double Wg=0;
-          for (int i=0; i<3; ++i) Wg += Wddot[9*i+3*2+2]*g[i];
-          // Now the shear term.
-          double upsilon= qh[2]*qh[2]*(3*qf[6]*qf[6]+4*qf[6]*qf[7]+
+        double xx=xmin+(ixx+0.5)*dx;
+        double x2=xx*xx;
+        for (int imu=0; imu<gl.N; ++imu) {
+            double mu = gl.x[imu];
+
+            // Compute vec{q}=vec{r}+vec{x} with vec{r}=r.zhat,
+            // so r_z=r, x_z=x*mu, cos_rq=(r_z+x_z)/q.
+            double qlen = sqrt(r2+x2+2*rval*xx*mu);
+            double qcos = (rval+xx*mu)/qlen;
+            double qsin = sqrt(1-qcos*qcos);
+            double qq[3] = {qlen*qsin,0,qlen*qcos};
+            double qh[3] = {     qsin,0,     qcos};
+            if (qlen>qmin && qlen<qmax) {
+                // We keep the Zeldovich piece exponentiated and expand down
+                // the 1-loop piece.
+                double pref = x2 * zeldovichIntegrand(rr,qq,0) * gl.w[imu];
+                // For the bias terms, compute U, xi and Ainv (even though in above).
+                std::vector<double> qf  =interpQfuncs(qlen);
+                std::vector<double> ef  =interpEfuncs(qlen);
+                std::vector<double> Ainv=calcAinv(qq);
+                std::vector<double> Aloop(9);
+                std::vector<double> Alin(9);
+                std::vector<double> Adot(9);
+                std::vector<double> Addot(9);
+
+                double Xdot=ef[0]+2*ef[1]+4*ef[2],Ydot=ef[3]+2*ef[4]+4*ef[5];
+                double Xddot=ef[0]+4*ef[1]+6*ef[2],Yddot=ef[3]+4*ef[4]+6*ef[5];
+                for (int i=0; i<3; ++i) {
+                    for (int j=0; j<3; ++j) {
+                        Aloop[3*i+j] = (ef[4]+2*ef[5])*qh[i]*qh[j]+(ef[1]+2*ef[2])*(i==j);
+                        Adot[ 3*i+j] = Ydot*qh[i]*qh[j]+Xdot*(i==j);
+                        Alin[ 3*i+j] = ef[3]*qh[i]*qh[j]+ef[0]*(i==j);
+                        Addot[3*i+j] = Yddot*qh[i]*qh[j]+Xddot*(i==j);
+                    }
+                }
+                double xiL=qf[3];
+                // Construct the auxilliary matrix/vectors g, G of CLPT Eq. (45)
+                // and Gamma of Eq. (75).
+                double g[3],UL[3],U[3],Udot[3],U20[3],U11[3],G[9],W[27],Wddot[27];
+                for (int i=0; i<3; ++i) {
+                    g[i]=0;
+                    for (int j=0; j<3; ++j)
+                        g[i] += Ainv[3*i+j]*(qq[j]-rr[j]);
+                    UL[i] = ef[11]*qh[i];
+                    U[ i] =(ef[11]+ef[12])*qh[i];
+                    Udot[i]  =(ef[11]+3*ef[12])*qh[i];
+                    U20[i]=ef[13]*qh[i];
+                    U11[i]=ef[14]*qh[i];
+                }
+
+                for (int i=0; i<3; ++i)
+                    for (int j=0; j<3; ++j)
+                        G[3*i+j]=Ainv[3*i+j]-g[i]*g[j];
+
+                double GA=0;
+                for (int i=0; i<3; ++i)
+                    for (int j=0; j<3; ++j)
+                        GA += Aloop[3*i+j]*G[3*i+j];
+
+                for (int i=0; i<3; ++i)
+                    for (int j=0; j<3; ++j)
+                        for (int k=0; k<3; ++k)
+                            W[9*i+3*j+k] = ef[8]*qh[i]*(j==k) + ef[8]*qh[j]*(i==k)
+                                + ef[9]*qh[k]*(i==j) +ef[10]*qh[i]*qh[j]*qh[k];
+                for (int i=0; i<3; ++i)
+                    for (int j=0; j<3; ++j)
+                        for (int k=0; k<3; ++k)
+                            Wddot[9*i+3*j+k] = 2*W[9*i+3*j+k]+2*W[9*i+3*k+j]+W[9*k+3*j+i];
+
+                // We also need \ddot{A}^{10}:
+                double A10[9];
+                for (int i=0; i<3; ++i)
+                    for (int j=0; j<3; ++j)
+                        A10[3*i+j] = (4*ef[7])*qh[i]*qh[j] + (4*ef[6])*(i==j);
+
+                double GW=0;
+                double V1=ef[8];
+                double V3=ef[9];
+                double Tq=ef[10];
+                for (int i=0; i<3; ++i) {
+                    for (int j=0; j<3; ++j) {
+                        for (int k=0; k<3; ++k) {
+                            double Gam,W;
+                            Gam = Ainv[3*i+j]*g[k]+Ainv[3*k+i]*g[j]+Ainv[3*j+k]*g[i]
+                                - g[i]*g[j]*g[k];
+                            W   = Tq*qh[i]*qh[j]*qh[k];
+                            if (j==k) W += V1*qh[i];
+                            if (i==k) W += V1*qh[j];
+                            if (i==j) W += V3*qh[k];
+                            GW += Gam*W;
+                        }
+                    }
+                }
+                GW *= 3;	// Account for permutations.
+                double trG = 0, Ug = 0, ULg = 0, U2 = 0, gq = 0, qG = 0, gA = 0, UGA = 0, qGq = 0, gAL = 0, gAU = 0, AGA = 0;
+                for (int i=0; i<3; ++i) {
+                    gq += g[i]*qh[i];
+                    gA += g[i]*Adot[3*2+i];
+                    gAL+= g[i]*Alin[3*2+i];
+                    Ug += U[i]*g[i];
+                    ULg+=UL[i]*g[i];
+                    U2 +=UL[i]*UL[i];
+                    qG += qh[i]*G[3*2+i];
+                    trG+= G[3*i+i];
+                    for (int j=0; j<3; ++j) {
+                        UGA += UL[i]*G[3*i+j]*Alin[3*2+j];
+                        qGq += qh[i]*G[3*i+j]*qh[j];
+                        gAU += g[i]*Alin[3*i+j]*UL[j];
+                        AGA += Alin[3*2+i]*G[3*i+j]*Alin[3*2+j];
+                    }
+                }
+
+                double GWv=0;
+                for (int i=0; i<3; ++i)
+                    for (int j=0; j<3; ++j) {
+                        double Wdot_ijn=(3*V1+V3)*(qh[i]*(j==2)+qh[j]*(i==2))+
+                                  2*(V1+V3)*qh[2]*(i==j)+
+                                  4*Tq*qh[i]*qh[j]*qh[2];
+                        GWv += G[3*i+j]*Wdot_ijn;
+                    }
+
+                double U20g=0,U11g=0;
+                for (int i=0; i<3; ++i) {
+                    U20g += U20[i]*g[i];
+                    U11g += U11[i]*g[i];
+                }
+                double UUG=0,qqG=0;
+                for (int i=0; i<3; ++i)
+                    for (int j=0; j<3; ++j) {
+                        UUG += G[3*i+j]*UL[i]*UL[j];
+                        qqG += G[3*i+j]*qh[i]*qh[j];
+                    }
+                double A10G=2*trG*ef[6] + 2*qqG*ef[7];
+                double d2xiLin=qf[5];
+
+                double gA10=3*(ef[6]*g[2]+ef[7]*gq*qh[2]);
+
+                // The mode-coupling term, then add the <s^2 Delta Delta> term:
+                double shear=ef[15]*gq;
+                for (int i=0; i<3; ++i)
+                    for (int j=0; j<3; ++j) {
+                        double upsilon= qh[i]*qh[j]*(3*qf[6]*qf[6]+4*qf[6]*qf[7]+
+                                  2*qf[6]*qf[8]+2*qf[7]*qf[7]+4*qf[7]*qf[8]+
+                                  qf[8]*qf[8]) + (i==j)*2*qf[7]*qf[7];
+                        shear += G[3*i+j]*upsilon;
+                    }
+                shear *= 2;
+
+                // The mode-coupling term, then add the <s^2 Delta Delta> term:
+                double shear_v=2*ef[15]*g[2];
+                for (int i=0; i<3; ++i) {
+                    double upsilon= qh[i]*qh[2]*(3*qf[6]*qf[6]+4*qf[6]*qf[7]+
+                                2*qf[6]*qf[8]+2*qf[7]*qf[7]+4*qf[7]*qf[8]+
+                                qf[8]*qf[8]) + (i==2)*2*qf[7]*qf[7];
+                    shear_v -= g[i]*upsilon;
+                }
+                shear_v *= 2;
+                double V12=qf[9]*gq;
+
+                // Now do the 1, Fp, Fpp, Fp^2, Fp.Fpp, Fpp^2, b_nabla^2,
+                // bs, b1.bs2, b2.bs2, bs2^2 terms.
+                xi[ 0] +=   pref *(1-GA/2.+GW/6.); // +Aeft*trG*eftNorm);
+                xi[ 1] +=  -pref *(2*Ug+A10G);
+                xi[ 2] +=  -pref *(UUG+U20g);
+                xi[ 3] +=   pref *(xiL-UUG-U11g);
+                xi[ 4] +=  -pref *(2*xiL*ULg);
+                xi[ 5] +=   pref *xiL*xiL/2;
+                xi[ 6] +=  -pref *0.5*trG;
+                xi[ 7] +=   pref *d2xiLin;
+                xi[ 8] +=  -pref *shear;
+                xi[ 9] +=  -pref *2*V12;
+                xi[10] +=   pref *qf[10];
+                xi[11] +=   pref *qf[11];
+
+                // Now do the 1, Fp, Fpp, Fp^2, Fp.Fpp, Fpp^2, grad_xi, g_los,
+                // bs2 terms.
+                vv[0] +=   -pref *(gA+0.5*GWv);
+                vv[1] +=  2*pref *(Udot[2]-UGA-gA10);
+                vv[2] +=    pref *(2*U20[2]-2*ULg*UL[2]);
+                vv[3] +=   -pref *(ULg*UL[2]+ULg*UL[2]+xiL*gAL-2*U11[2]);
+                vv[4] +=  2*pref *xiL*UL[2];
+                vv[5] +=  0;
+                vv[6] +=    pref *qf[4];
+                vv[7] +=    pref *g[2];
+                vv[8] +=    pref *shear_v;
+                vv[9] +=    pref *V12;
+
+                double Wg=0;
+                for (int i=0; i<3; ++i) Wg += Wddot[9*i+3*2+2]*g[i];
+                // Now the shear term.
+                double upsilon= qh[2]*qh[2]*(3*qf[6]*qf[6]+4*qf[6]*qf[7]+
                           2*qf[6]*qf[8]+2*qf[7]*qf[7]+4*qf[7]*qf[8]+
                           qf[8]*qf[8]) + 2*qf[7]*qf[7];
-          double shear = 2*upsilon;
-          // Now do the 1, Fp, Fpp, Fp^2, Fp.Fpp, Fpp^2 terms for \sigma_par^2.
-          ss[ 0] +=    pref *(Addot[3*2+2]-AGA-Wg);
-          ss[ 1] += -2*pref *(2*gAL*UL[2]+ULg*Alin[3*2+2]-A10[3*2+2]);
-          ss[ 2] +=  2*pref *   UL[2]*UL[2];
-          ss[ 3] +=    pref *(2*UL[2]*UL[2]+xiL*Alin[3*2+2]);
-          ss[ 4]  =  0;
-          ss[ 5]  =  0;
-          ss[ 6]  =    pref *2*shear;
-          ss[ 7]  =    pref *1*qf[3];
-          // Next work out the trace components, i.e. summed over n=m.
-          Wg=0;
-          for (int i=0; i<3; ++i)
-            for (int j=0; j<3; ++j)
-              Wg += Wddot[9*i+3*j+j]*g[i];
-          AGA=0;
-          for (int m=0; m<3; ++m) {
-            for (int i=0; i<3; ++i) {
-              for (int j=0; j<3; ++j) {
-                AGA += Alin[3*m+i]*G[3*i+j]*Alin[3*j+m];
-              }
+                double shear_s = 2*upsilon;
+                // Now do the 1, Fp, Fpp, Fp^2, Fp.Fpp, Fpp^2 terms for \sigma_par^2.
+                ss[ 0] +=    pref *(Addot[3*2+2]-AGA-Wg);
+                ss[ 1] += -2*pref *(2*gAL*UL[2]+ULg*Alin[3*2+2]-A10[3*2+2]);
+                ss[ 2] +=  2*pref *   UL[2]*UL[2];
+                ss[ 3] +=    pref *(2*UL[2]*UL[2]+xiL*Alin[3*2+2]);
+                ss[ 4]  =  0;
+                ss[ 5]  =  0;
+                ss[ 6]  =    pref *2*shear_s;
+                ss[ 7]  =    pref *1*qf[3];
+                // Next work out the trace components, i.e. summed over n=m.
+                Wg=0;
+                for (int i=0; i<3; ++i)
+                    for (int j=0; j<3; ++j)
+                        Wg += Wddot[9*i+3*j+j]*g[i];
+                AGA=0;
+                for (int m=0; m<3; ++m) {
+                    for (int i=0; i<3; ++i) {
+                        for (int j=0; j<3; ++j) {
+                            AGA += Alin[3*m+i]*G[3*i+j]*Alin[3*j+m];
+                        }
+                    }
+                }
+                double trA=0,trAL=0,trA10=0;
+                for (int m=0; m<3; ++m) {
+                    trA  += Addot[3*m+m];
+                    trAL +=  Alin[3*m+m];
+                    trA10+=   A10[3*m+m];
+                }
+                // Now the shear term.
+                upsilon=0;
+                for (int m=0; m<3; ++m)
+                    upsilon += qh[m]*qh[m]*(3*qf[6]*qf[6]+4*qf[6]*qf[7]+
+                           2*qf[6]*qf[8]+2*qf[7]*qf[7]+4*qf[7]*qf[8]+
+                           qf[8]*qf[8]) + 2*qf[7]*qf[7];
+                shear_s = 2*upsilon;
+                ss[ 8] +=    pref *(trA-AGA-Wg);
+                ss[ 9] += -2*pref *(2*gAU+ULg*trAL-trA10);
+                ss[10] +=  2*pref * U2;
+                ss[11] +=    pref *(2*U2+xiL*trAL);
+                ss[12]  =  0;
+                ss[13]  =  0;
+                ss[14]  =    pref *2*shear_s;
+                ss[15]  =    pref *3*qf[3];
             }
-          }
-          double trA=0,trAL=0,trA10=0;
-          for (int m=0; m<3; ++m) {
-            trA  += Addot[3*m+m];
-            trAL +=  Alin[3*m+m];
-            trA10+=   A10[3*m+m];
-          }
-          // Now the shear term.
-          upsilon=0;
-          for (int m=0; m<3; ++m)
-            upsilon += qh[m]*qh[m]*(3*qf[6]*qf[6]+4*qf[6]*qf[7]+
-                       2*qf[6]*qf[8]+2*qf[7]*qf[7]+4*qf[7]*qf[8]+
-                       qf[8]*qf[8]) + 2*qf[7]*qf[7];
-          shear = 2*upsilon;
-          ss[ 8] +=    pref *(trA-AGA-Wg);
-          ss[ 9] += -2*pref *(2*gAU+ULg*trAL-trA10);
-          ss[10] +=  2*pref * U2;
-          ss[11] +=    pref *(2*U2+xiL*trAL);
-          ss[12]  =  0;
-          ss[13]  =  0;
-          ss[14]  =    pref *2*shear;
-          ss[15]  =    pref *3*qf[3];
         }
-      }
     }
+    for (int j=0; j<xi.size(); ++j) {
+        xi[j] *= dx;      // Convert sum to integral.
+        xi[j] *= 2*M_PI;  // The azimuthal integral.
+    }
+    xi[0] -= 1.0;	// Calculated 1+xi, subtract 1 for xi.
+
+    for (int j=0; j<vv.size(); ++j) {
+        vv[j] *= dx;      // Convert sum to integral.
+        vv[j] *= 2*M_PI;  // The azimuthal integral.
+    }
+
     // Now sigma_perp is related to the trace by s_perp^2=(1/2)[Tr-sig_par^2]
     for (int j=8; j<ss.size(); ++j)
-      ss[j] = 0.5*(ss[j] - ss[j-8]);
+        ss[j] = 0.5*(ss[j] - ss[j-8]);
     for (int j=0; j<ss.size(); ++j) {
-      ss[j] *= dx;	// Convert sum to integral.
-      ss[j] *= 2*M_PI;	// The azimuthal integral.
+        ss[j] *= dx;	// Convert sum to integral.
+        ss[j] *= 2*M_PI;	// The azimuthal integral.
     }
-    // Note we return parallel then perpendicular/transverse!
-    return(ss);
+    std::vector<std::vector<double>> res = {xi, vv, ss};
+    return res;
 }
 
 void
@@ -816,9 +687,10 @@ LSM::init(const char fname[], const double f,
     for (int i=1; i<rrvec.size(); ++i) {
       //std::vector<double> zC = xiContributions(rrvec[i],Aeft);
       //std::vector<double> vC = v12(rrvec[i]);
-      std::vector<double> xC = dpair(rrvec[i]);
-      std::vector<double> vC = vpair(rrvec[i]);
-      std::vector<double> sC = spair(rrvec[i]);
+      auto allPairs = dvsPair(rrvec[i]);
+      std::vector<double> xC = allPairs[0];
+      std::vector<double> vC = allPairs[1];
+      std::vector<double> sC = allPairs[2];
       xi = xC[0]+b1*xC[1]+b2*xC[2]+b1*b1*xC[3]+b1*b2*xC[ 4]+b2*b2*xC[ 5]+
                Aeft*xC[6]+ 0*xC[7]+   bs*xC[8]+b1*bs*xC[ 9]+b2*bs*xC[10]+
               bs*bs*xC[11];
@@ -983,7 +855,7 @@ LSM::printXiStuff(const char fbase[]) {
     for (int ir=0; ir<65; ++ir) {
       double rr = 10.0 + 2*(ir+0.5);
       std::vector<double> qf = interpQfuncs(rr);
-      std::vector<double> xC = dpair(rr);
+      std::vector<double> xC = dvsPair(rr)[0];
       fs<<std::scientific<<std::setw(12)<<std::setprecision(4)<<rr
         <<std::scientific<<std::setw(12)<<std::setprecision(4)<<qf[3];
       for (int j=0; j<xC.size(); ++j)
@@ -1007,7 +879,7 @@ LSM::printVpStuff(const char fbase[]) {
     for (int ir=0; ir<65; ++ir) {
       double rr = 10.0 + 2*(ir+0.5);
       std::vector<double> qf = interpQfuncs(rr);
-      std::vector<double> vC = vpair(rr);
+      std::vector<double> vC = dvsPair(rr)[1];
       fs<<std::scientific<<std::setw(12)<<std::setprecision(4)<<rr
         <<std::scientific<<std::setw(12)<<std::setprecision(4)<<2*qf[2];
       for (int j=0; j<vC.size(); ++j)
@@ -1030,7 +902,7 @@ LSM::printS2Stuff(const char fbase[]) {
        << "# first for sig2_par then for sig2_perp."<<std::endl;
     for (int ir=0; ir<65; ++ir) {
       double rr = 10.0 + 2*(ir+0.5);
-      std::vector<double> sC = spair(rr);
+      std::vector<double> sC = dvsPair(rr)[2];
       fs<<std::scientific<<std::setw(12)<<std::setprecision(4)<<rr;
       for (int j=0; j<sC.size(); ++j)
         fs<<std::scientific<<std::setw(12)<<std::setprecision(4)<<sC[j];
