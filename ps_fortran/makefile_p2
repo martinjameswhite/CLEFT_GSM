@@ -1,0 +1,36 @@
+
+FC = ifort
+#FC = pgf90
+#FC = gfortran
+FFLAGS =
+LFLAGS =
+OBJECTS = cdgamma.o drfftb.o drfftf.o drffti.o fftlog.o asa063.o sig12_module.o sig12_main.o
+.PHONY: clean help
+
+output.txt: PS_main.exe
+	./sig12_main.exe > output12.txt
+
+PS_main.exe: $(OBJECTS)
+	$(FC) $(LFLAGS) $(OBJECTS) -o sig12_main.exe
+
+%.o : %.f
+	$(FC) $(FFLAGS) -c $< 
+
+%.o : %.f90
+	$(FC) $(FFLAGS) -c $< 
+
+clean:
+	rm -f $(OBJECTS) *.exe *.mod
+
+help:
+	@echo "Valid targets:"
+	@echo "  sig12_main.exe"
+	@echo "  sig12_main.o"
+	@echo "  sig12_module.o"
+	@echo "  asa063.o"
+	@echo "  fftlog.o"
+	@echo "  drffti.o"
+	@echo "  drfftf.o"
+	@echo "  drfftb.o"
+	@echo "  cdgamma.o"
+	@echo "  clean:  removes .o and .exe .mod files"
