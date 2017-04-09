@@ -1,0 +1,16 @@
+This directory contains Fortran routines which evaluate the power spectrum using CLEFT-GSM.
+To compile the code copy e.g. makefile_p0 to Makefile and type make.  If you have the Intel fortran
+compiler installed it will compile and run the code, producing a number of files in the current
+directory with names like "PS_hh_46_z025.dat".  This is an ascii text file containing the pieces
+of the halo-halo power spectrum at z=0.25.
+
+You can change the redshifts at which the code outputs results by modifying the lines defining
+parz and zstr in PS_main.f90.  For example higher redshifts could be selected as:
+
+real(kind=dp), dimension(9) :: parz = (/0.55,0.65,0.70,0.75,0.80,1.00,1.50,1.75,2.00/)
+character(len=1024) :: filename
+character(len=3), dimension(9) :: zstr = (/ "055","065","070","075","080","100","150","175","200"/)
+
+Each output file contains a header giving some information on the growth rate and growth factor
+and the meaning of each column in the file.  For further information on the notation, see the
+journal article.
