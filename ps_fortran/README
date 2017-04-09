@@ -18,3 +18,11 @@ defining parz and zstr in PS_main.f90.  For example higher redshifts could be se
 real(kind=dp), dimension(9) :: parz = (/0.55,0.65,0.70,0.75,0.80,1.00,1.50,1.75,2.00/)
 character(len=1024) :: filename
 character(len=3), dimension(9) :: zstr = (/ "055","065","070","075","080","100","150","175","200"/)
+
+The code reads the E_n mode coupling integrals from a file.  This is
+currently produced externally, though we are working on including this
+functionality here for completeness.  In the meantime we provide two
+files which can be used: the default uses the cosmology of the ANL
+simulations from the paper above.  There is also a file appropriate for
+the cosmology assumed in the DarkSky simulations
+[http://darksky.slac.stanford.edu/].
