@@ -8,6 +8,10 @@ Each output file contains a header giving some information on the growth rate an
 factor and the meaning of each column in the file.  For further information on the notation,
 see the journal article.
 
+Z.Vlah, E.Castorina, M.White
+The Gaussian streaming model and Convolution Lagrangian effective field theory
+JCAP 12(2016)007, [https://arxiv.org/abs/1609.02908]
+
 You can change the redshifts at which the code outputs results by modifying the lines
 defining parz and zstr in PS_main.f90.  For example higher redshifts could be selected as:
 
