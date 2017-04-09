@@ -58,7 +58,7 @@ program PS_main
 !---     input-data    ---!
 ! Read input data --- Note that data was prepared to fit the initialized rr(i) mash!
 
-  open(20,file='/Ens_ANL15_FFT_2p12.dat',status='old')
+  open(20,file='Ens_ANL15_FFT_2p12.dat',status='old')
   read(20,*)
   read(20,*)
   read(20,*)
