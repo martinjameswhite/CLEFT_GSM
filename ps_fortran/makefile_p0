@@ -1,10 +1,10 @@
 
-FC = ifort
+#FC = ifort
 #FC = pgf90
-#FC = gfortran
+FC = gfortran
 FFLAGS =
 LFLAGS =
-OBJECTS = cdgamma.o drfftb.o drfftf.o drffti.o fftlog.o asa063.o PS_module.o PS_main.o
+OBJECTS = cdgamma.o drfftb.o drfftf.o drffti.o fftlog.o asa063.o ps00_module.o ps00_main.o
 .PHONY: clean help
 
 output.txt: PS_main.exe
@@ -24,9 +24,9 @@ clean:
 
 help:
 	@echo "Valid targets:"
-	@echo "  PS_main.exe"
-	@echo "  PS_main.o"
-	@echo "  PS_module.o"
+	@echo "  ps00_main.exe"
+	@echo "  ps00_main.o"
+	@echo "  ps00_module.o"
 	@echo "  asa063.o"
 	@echo "  fftlog.o"
 	@echo "  drffti.o"
