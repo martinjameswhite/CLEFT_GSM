@@ -15,3 +15,13 @@ called from Python (wrappers provided).
 The C++ version currently only implements the configuration-space statistics
 (i.e. the correlation function).  The Fortran routines in "ps_fortran" provide
 an implementation of the power spectrum routines.
+
+We additionally provide fast and simple Python routines for computing the
+Halo-Zeldovich model real-space auto- and cross-correlations of biased tracers
+as described in
+
+C.Modi, M.White, Z.Vlah
+
+Modeling CMB Lensing Cross Correlations with CLEFT
+
+submitted to JCAP.
