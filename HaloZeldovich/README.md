@@ -8,3 +8,10 @@ Modi, White & Vlah, JCAP, submitted.
 This code can be used to model the real-space auto- and cross-correlations
 of biased tracers at large scales and high redshift, for example in modeling
 cross-correlations of galaxies or quasars and CMB lensing.
+
+This code makes use of the "multiplicative convolutional fast integral transforms"
+library:
+
+https://github.com/eelregit/mcfit
+
+which you will need to install.
