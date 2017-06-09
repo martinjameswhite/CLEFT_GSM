@@ -7,11 +7,9 @@ from mcfit import SphericalBessel as sph
 from scipy.integrate import quad
 from scipy.interpolate import InterpolatedUnivariateSpline as interpolate
 from scipy.misc import derivative
-modpath = "/global/u1/c/chmodi/Programs/Py_codes/modules"
 import sys
-sys.path.append(modpath)
 
-class Hzpt:
+class HZ:
     '''
     Class to evaluate HZ Power Spectrum given a linear power spectrum k, p.
     Call hzpt.make_table() to create the table of power spectra
@@ -381,36 +379,3 @@ class Hzpt:
             toret += 1* k**l * numpy.interp(k, ktemp, ftemp)
         return toret
         
-
-
-##
-##    def setupinterpolatef(self):        
-##        qt = self.qt
-##        xi0lin0 = self.xi0lin0()
-##        ilxi0lin = self.loginterp(*self.xi0lin())
-##        ilxi2lin = self.loginterp(*self.xi2lin(tilt = 0))
-##
-##        Xlin = 2/3.*( ilxi0lin(qt) + ilxi2lin(qt))
-##        iltXlin = self.loginterp(qt, Xlin)
-##
-##        ilXlin = lambda x: 2/3.*xi0lin0 - iltXlin(x)
-##
-##        #xlin goes negative. Check that and change extrapolate
-##        #check if this is actually needed
-##        qcheck = numpy.logspace(-5, -2, 1e4)
-##        qstop = qcheck[::-1][numpy.where(ilXlin(qcheck[::-1]) < 0)[0][0]]
-##        qforX = numpy.logspace(numpy.log10(qstop), 8, 1e5)
-##        itXlin = lambda x: numpy.interp(x, qforX, ilXlin(qforX))
-##
-##        #ylin
-##        Ylin = 2*ilxi2lin(qt)
-##        ilYlin = self.loginterp(qt, Ylin)
-##        #itYlin = lambda x: numpy.interp(x, qforX, ilYlin(qforX))
-##
-##        #ulin
-##        ilulin = self.loginterp(*self.u10lin(), lp = 200)
-##        #return  itXlin, ilYlin, ilulin
-##        return  ilXlin, ilYlin, ilulin
-##
-##
-##
