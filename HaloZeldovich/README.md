@@ -10,7 +10,7 @@ cross-correlations of biased tracers at large scales and high redshift,
 for example in modeling cross-correlations of galaxies or quasars
 and CMB lensing or quasar-galaxy cross-correlations.
 
-This code makes use of the
+This code requires NumPy and SciPy and makes use of the
 "multiplicative convolutional fast integral transforms"
 library:
 
