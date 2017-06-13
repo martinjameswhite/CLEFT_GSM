@@ -193,6 +193,7 @@ class Zeldovich:
         # The order is k, ZA, b1, b2, b1sq, b2sq, b1b1
         hdr= ["k","P_Z","b1","b2","b1^2","b2^2","b1.b2"]
         ff = open(fn,"w")
+        ff.write("# Components of the (real space) Zeldovich power spectrum.\n")
         str = "# %14s"%hdr[0]
         for hh in hdr[1:]:
             str += " %15s"%hh
