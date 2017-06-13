@@ -1,3 +1,6 @@
+#
+from __future__ import print_function,division
+
 import numpy
 #import kernels
 from mcfit import SphericalBessel as sph
@@ -15,11 +18,17 @@ class Zeldovich:
     spectrum k, p [in compatible units, e.g. h/Mpc and (Mpc/h)^3].
     This can be used as the basis for both the HaloZeldovich and ZEFT
     approximations, and for auto and cross-spectra.
+    See:
+    Modi, White & Vlah, arXiv:1706.03173
+    https://arxiv.org/abs/1706.03173
+    for more information.
     To main method is make_table(), which creates the table of power spectra
-    components.
-    The order is k, ZA, b1, b2, b1sq, b2sq, b1b1
+    components.  The order is k, ZA, b1, b2, b1sq, b2sq, b1b1
+    Convenience functions are provided for common calls.
     '''
-    def __init__(self, k, p, Qfile = None, Rfile = None):
+    def __init__(self, k, p):
+        '''k,p are the linear theory power spectra in compatible units,
+        e.g. h/Mpc and (Mpc/h)^3.'''
         self.kp    = k
         self.p     = p
         self.ilpk  = self.loginterp(k, p)
@@ -28,12 +37,12 @@ class Zeldovich:
         self.qt    = numpy.logspace(-5, 5, 1e4)
         self.kint  = numpy.logspace(-5, 5, 1e4)
         self.jn    = 10 #number of bessels to sum over
+        self.pktable=None
         self.setup()
         #
     def setup(self):
         '''
         Create X_L, Y_L, xi_L, U1_L \& 0lag sigma.
-        This is the most time consuming part of the code.
         '''
         self.xi0lag = self.xi0lin0() 
         self.qv, xi0v = self.xi0lin()
@@ -50,9 +59,6 @@ class Zeldovich:
         self.XYlin = (self.Xlin + self.Ylin)
         self.sigma = self.XYlin[-1]
         self.yq = (1*self.Ylin/self.qv)
-        
-
-
     ### Interpolate functions in log-sapce beyond the limits
     def loginterp(self, x, y, yint = None, side = "both",\
                   lorder = 15, rorder = 15, lp = 1, rp = -1, \
@@ -86,12 +92,10 @@ class Zeldovich:
         yint2 = interpolate(xint, yint, k = 5)
         #
         return yint2
-
     def dosph(self, n, x, f, tilt = 1.5):
         #Function to do bessel integral using FFTLog for kernels
         f = f*self.renorm
         return sph(x, nu = n, q = tilt)(f, extrap = True)
-
     #PT kernels below
     #0 lag
     def xi0lin0(self, kmin = 1e-6, kmax = 1e3):
@@ -144,7 +148,6 @@ class Zeldovich:
         if l==0 and j0:
             ftemp *= suppress
         return 1* k**l * numpy.interp(k, ktemp, ftemp)
-
     def integrals(self, k):
         '''Do the \mu integrals for various parameters for give 'k'
         '''
@@ -172,17 +175,60 @@ class Zeldovich:
             b2sq += self.template(k,l,fb2sq,expon,expon0,suppress,j0=True)
             b1b2 += self.template(k,l,fb1b2,expon,expon0,suppress,j0=False)
         return 4*numpy.pi*numpy.array([za, b1, b2, b1sq, b2sq, b1b2])
-
-
     def make_table(self, kmin = 1e-3, kmax = 3, nk = 100):
         '''Make a table of different terms of P(k) between a given
         'kmin', 'kmax' and for 'nk' equally spaced values in log10 of k
+        This is the most time consuming part of the code.
         '''
         self.pktable = numpy.zeros([nk, 7])
         kv = numpy.logspace(numpy.log10(kmin), numpy.log10(kmax), nk)
         self.pktable[:, 0] = kv[:]
         for foo in range(nk):
             self.pktable[foo, 1:] = self.integrals(kv[foo])
-
-
-
+    def write_table(self,fn):
+        '''Writes the table to an ascii text file, fn.'''
+        if self.pktable is None:
+            print("Zeldovich table not created.")
+            return
+        # The order is k, ZA, b1, b2, b1sq, b2sq, b1b1
+        hdr= ["k","P_Z","b1","b2","b1^2","b2^2","b1.b2"]
+        ff = open(fn,"w")
+        str = "# %14s"%hdr[0]
+        for hh in hdr[1:]:
+            str += " %15s"%hh
+        ff.write(str+"\n")
+        for i in range(self.pktable.shape[0]):
+            str = ""
+            for t in self.pktable[i,:]:
+                str += " %15.5e"%t
+            ff.write(str+"\n")
+        ff.close()
+    def __call__(self,b1=0,b2=0,alpha=0,sn=0,auto=True):
+        '''   
+        A convenience function for the most common calls.
+        Returns either the auto-spectrum or the halo-matter cross-spectrum
+        depending upon auto.  This handles both the HaloZeldovich and ZEFT
+        approximations, depending upon the value of alpha and sn.
+        '''
+        if self.pktable is None:
+            print("Zeldovich table not created.")
+            return( (numpy.zeros(10),numpy.zeros(10)) )
+        # The column order is: k,P_Z,b1,b2,b1^2,b2^2,b1.b2
+        if auto:	# Auto-spectrum.
+            par = numpy.array([0,1.,b1,b2,b1**2,b2**2,b1*b2])
+        else:		# Tracer-matter cross-spectrum.
+            par = numpy.array([0,1.,b1/2.,b2/2.,0,0,0])
+        tmp = numpy.dot(self.pktable,par)
+        # The EFT parameter, alpha, for the ZEFT model.
+        tmp-= alpha/2.*self.pktable[:,0]**2*self.pktable[:,1]
+        # The 1-halo parameter, sn, for the HaloZeldovich model.
+        tmp+= sn
+        return( (self.pktable[:,0],tmp) )
+    def cross_spectrum(self,b1A=0,b2A=0,alphaA=0,snA=0,\
+                            b1B=0,b2B=0,alphaB=0,snB=0):
+        '''   
+        The most general case, a cross-spectrum between two tracers
+        with different bias, EFT and shot-noise parameters.
+        CURRENTLY A STUB.
+        '''
+        return(0)
