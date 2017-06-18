@@ -24,4 +24,4 @@ C.Modi, M.White, Z.Vlah
 
 Modeling CMB Lensing Cross Correlations with CLEFT
 
-Modi, White & Vlah, JCAP, submitted. [https://arxiv.org/abs/1706.03173]
+JCAP, submitted. [https://arxiv.org/abs/1706.03173]
