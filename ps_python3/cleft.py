@@ -10,8 +10,8 @@ from qfunc import Qfunc
 
 class CLEFT():
     '''
-    Class to evaluate HZ Power Spectrum given a linear power spectrum k, p.
-    Call hzpt.make_table() to create the table of power spectra
+    Class to evaluate CLEFT power spectrum given a linear power spectrum k, p.
+    Call make_table() to create the table of power spectra
     The order is 
     k, ZA, A, W, b1, b1^2, b2, b2^2, b1b2, bs2, b1bs2, b2bs2, bs2^2, bn, b1bn
     #bn and b1bn are not implemented yet

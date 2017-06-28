@@ -5,6 +5,10 @@ from scipy.integrate import trapz, simps
 
 #constants
 
+#
+# Mode coupling kernels from Lagrangian perturbation theory.
+#
+
 class Q:
 
     def __init__(self, k, p, ilpk):

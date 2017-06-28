@@ -11,6 +11,11 @@ modpath = "/global/u1/c/chmodi/Programs/Py_codes/modules"
 import sys
 sys.path.append(modpath)
 
+#
+# Integrates the Lagrangian perturbation theory mode-coupling kernels
+# (in kernel.py) to get the q-dependent functions.
+#
+
 class Qfunc:
 
     def __init__(self, k, p, Qfile = None, Rfile = None):
