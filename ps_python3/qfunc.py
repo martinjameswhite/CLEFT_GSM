@@ -7,9 +7,7 @@ from mcfit import SphericalBessel as sph
 from scipy.integrate import quad
 from scipy.interpolate import InterpolatedUnivariateSpline as interpolate
 from scipy.misc import derivative
-modpath = "/global/u1/c/chmodi/Programs/Py_codes/modules"
 import sys
-sys.path.append(modpath)
 
 #
 # Integrates the Lagrangian perturbation theory mode-coupling kernels
@@ -18,7 +16,7 @@ sys.path.append(modpath)
 
 class Qfunc:
 
-    def __init__(self, k, p, Qfile = None, Rfile = None):
+    def __init__(self, k, p, Qfile = None, Rfile = None, debug = False):
         
         self.kp = k
         self.p = p
@@ -27,30 +25,41 @@ class Qfunc:
         self.renorm = numpy.sqrt(numpy.pi/2.)
         self.tpi2 = 2*numpy.pi**2.
         self.kint = numpy.logspace(-5, 5, 1e4)
+        self.debug = debug
 
         if Qfile is None:
             self.kq, self.Q1, self.Q2, self.Q3, self.Q5, self.Q8, self.Qs2 = self.calc_Q()
         else:
             self.kq, self.Q1, self.Q2, self.Q3, self.Q5, self.Q8, self.Qs2  = numpy.loadtxt(Qfile, unpack=True)
+        print('loginterp Q')
+        if debug: print('loginterp Q1')
         self.ilQ1 = self.loginterp(self.kq, self.Q1, rp = -5)
+        if debug: print('loginterp Q2')
         self.ilQ2 = self.loginterp(self.kq, self.Q2, rp = -5)
+        if debug: print('loginterp Q3')
         self.ilQ3 = self.loginterp(self.kq, self.Q3, rp = -5)
+        if debug: print('loginterp Q5')
         self.ilQ5 = self.loginterp(self.kq, self.Q5, rp = -5)
+        if debug: print('loginterp Q8')
         self.ilQ8 = self.loginterp(self.kq, self.Q8, rp = -5)
+        if debug: print('loginterp Qs2')
         self.ilQs2 = self.loginterp(self.kq, self.Qs2, rp = -5)
 
         if Rfile is None:
             self.kr, self.R1, self.R2 = self.calc_R()
         else:
             self.kr, self.R1, self.R2  = numpy.loadtxt(Rfile, unpack=True)
+        print('loginterp R')
+        if debug: print('loginterp R1')
         self.ilR1 = self.loginterp(self.kr, self.R1)
+        if debug: print('loginterp R2')
         self.ilR2 = self.loginterp(self.kr, self.R2)
 
 
     def calc_Q(self):
-        #k = numpy.logspace(-4, 4, 2e3)
         print('Evaluating Q integrals. Recommend saving them')
         k = numpy.logspace(-4, 4, 2e3)
+        #k = numpy.logspace(-4, 2.31, 5e2)
         p = self.ilpk(k)
         Qk = kernels.Q(k, p, self.ilpk)
         Q1, Q2, Q3, Q5, Q8, Qs2 = numpy.zeros_like(k), numpy.zeros_like(k), numpy.zeros_like(k), numpy.zeros_like(k), numpy.zeros_like(k), numpy.zeros_like(k)
@@ -66,6 +75,7 @@ class Qfunc:
     def calc_R(self):
         print('Evaluating R integrals. Recommend saving them')
         k = numpy.logspace(-4, 4, 2e3)
+        #k = numpy.logspace(-4, 2.31, 5e2)
         p = self.ilpk(k)
         Rk = kernels.R(k, p, self.ilpk)
         R1, R2 = numpy.zeros_like(k), numpy.zeros_like(k)
@@ -91,6 +101,7 @@ class Qfunc:
     #Xi integrals from 1506.05264; ZV LEFT paper
     #0 lag
     def xi0lin0(self, kmin = 1e-6, kmax = 1e3):
+        if self.debug: print('xi0lin0')
         val = quad(self.ilpk, kmin, kmax, limit = 200)[0]/self.tpi2
         return val
 
@@ -100,6 +111,7 @@ class Qfunc:
         rt = 10./21.*self.ilR1(kint)
         integrand = qt + rt 
         linterp = self.loginterp(kint, integrand)
+        if self.debug: print('xi0loop0')
         val = quad(linterp, kmin, kmax, limit = 200)[0]/self.tpi2
         return val
 
@@ -338,7 +350,7 @@ class Qfunc:
 
 
     ### Enterpolate functions in log-sapce beyond the limits
-    def loginterp(self, x, y, yint = None, side = "both", lorder = 15, rorder = 15, lp = 1, rp = -1, \
+    def loginterp(self, x, y, yint = None, side = "both", lorder = 7, rorder = 7, lp = 1, rp = -1, \
                   ldx = 1e-6, rdx = 1e-6):
         '''Extrapolate function by evaluating a log-index of left & right side
         '''
