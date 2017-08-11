@@ -5,7 +5,7 @@ from mcfit import SphericalBessel as sph
 #Divide the funciton by this to get the correct form 
 
 from scipy.interpolate import InterpolatedUnivariateSpline as interpolate
-from qfunc import Qfunc
+from qfuncpool import Qfunc
 from itertools import repeat
 from functools import partial
 import multiprocessing as mp
@@ -20,7 +20,7 @@ class CLEFT():
     #bn and b1bn are not implemented yet
     '''
     
-    def __init__(self, k = None, p = None, pfile = None, qfile = None, rfile = None):
+    def __init__(self, k = None, p = None, pfile = None, qfile = None, rfile = None, npool = 4):
         if pfile is None:
             if p is None:
                 print("Specify the power sepctrum file or the array")
@@ -28,7 +28,7 @@ class CLEFT():
             k, p = np.loadtxt(pfile, unpack = True)
         self.kp = k
         self.p = p
-        self.qf = Qfunc(k, p, Qfile=qfile, Rfile = rfile)
+        self.qf = Qfunc(k, p, Qfile=qfile, Rfile = rfile, npool = npool)
         print("Q & R kernels created")
 
         self.renorm = numpy.sqrt(numpy.pi/2.) #mcfit normaliztion
