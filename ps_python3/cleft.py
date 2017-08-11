@@ -17,7 +17,7 @@ class CLEFT():
     #bn and b1bn are not implemented yet
     '''
     
-    def __init__(self, k = None, p = None, pfile = None, qfile = None, rfile = None):
+    def __init__(self, k = None, p = None, pfile = None, qfile = None, rfile = None, debug = False):
         if pfile is None:
             if p is None:
                 print("Specify the power sepctrum file or the array")
@@ -25,12 +25,14 @@ class CLEFT():
             k, p = np.loadtxt(pfile, unpack = True)
         self.kp = k
         self.p = p
-        self.qf = Qfunc(k, p, Qfile=qfile, Rfile = rfile)
+        self.debug = debug
+        
+        self.qf = Qfunc(k, p, Qfile=qfile, Rfile = rfile, debug = self.debug)
         print("Q & R kernels created")
 
         self.renorm = numpy.sqrt(numpy.pi/2.) #mcfit normaliztion
         self.tpi2 = 2*numpy.pi**2.
-        self.jn = 10 #number of bessels to sum over
+        self.jn = 15 #number of bessels to sum over
 
         self.setup_dm()
         print("Matter q-functions created")
@@ -180,7 +182,8 @@ class CLEFT():
                           6*(l-1)*self.xi3loop/(k**2 *self.Ylin))/self.yq /k
 
     def b1(self, k):
-        return lambda l: -k**2 *(self.x10 + self.y10) + 2*l*self.y10/self.Ylin -2*self.qv* bool(l)*self.u10/self.Ylin
+        #return lambda l: -k**2 *(self.x10 + self.y10) + 2*l*self.y10/self.Ylin -2*self.qv* bool(l)*self.u10/self.Ylin
+        return lambda l: -k**2 *(2*self.x10 + 2*self.y10) + 2*l*2*self.y10/self.Ylin -2*self.qv* bool(l)*self.u10/self.Ylin
 
     def b1sq(self, k):
         return lambda l: self.corr - k**2 *self.u10**2 + 2*l*self.u10**2/self.Ylin -self.qv* bool(l)*self.u11/self.Ylin
