@@ -102,6 +102,7 @@ def Q(kv, pk, npool = 4, ns = None, kintv = None):
     prod = product(ns, kv)
     Qv = pool.starmap(Q_external, list(prod))
     pool.close()
+    pool.join()
     Qv = numpy.array(Qv).reshape(len(ns), -1)
     toret = numpy.zeros([Qv.shape[0] + 1, Qv.shape[1]])
     toret[0] = kv
@@ -180,6 +181,7 @@ def R(kv, pk, npool = 4, ns = None, kintv = None):
     prod = product(ns, kv)
     Rv = pool.starmap(R_external, list(prod))
     pool.close()
+    pool.join()
     Rv = numpy.array(Rv).reshape(len(ns), -1)
     toret = numpy.zeros([Rv.shape[0] + 1, Rv.shape[1]])
     toret[0] = kv

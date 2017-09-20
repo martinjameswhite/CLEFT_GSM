@@ -4,6 +4,7 @@ from mcfit import SphericalBessel as sph
 #mcfit multiplies by sqrt(2/pi)*x**2 to the function. 
 #Divide the funciton by this to get the correct form 
 
+from scipy.integrate import romberg
 from scipy.interpolate import InterpolatedUnivariateSpline as interpolate
 from qfuncpool import Qfunc
 from itertools import repeat
@@ -13,14 +14,12 @@ import multiprocessing as mp
 
 class CLEFT():
     '''
-    Class to evaluate CLEFT Power Spectrum Components given a linear power spectrum k, p.
-    Call hzpt.make_table() to create the table of power spectra
-    The order is 
-    k, ZA, A, W, b1, b1^2, b2, b2^2, b1b2, bs2, b1bs2, b2bs2, bs2^2, bn, b1bn
-    #bn and b1bn are not implemented yet
+    Class to evaluate CLEFT kernels to calculate Power Spectrum Components given a linear power spectrum k, p.
+    # bn and b1bn are not implemented yet
     '''
     
-    def __init__(self, k = None, p = None, pfile = None, qfile = None, rfile = None, npool = 4):
+    def __init__(self, k = None, p = None, pfile = None, qfile = None, rfile = None, ensfile = None, \
+                 npool = 4, extrapker = True, saveqfile = None, saveQRfile = None):
         if pfile is None:
             if p is None:
                 print("Specify the power sepctrum file or the array")
@@ -28,19 +27,26 @@ class CLEFT():
             k, p = np.loadtxt(pfile, unpack = True)
         self.kp = k
         self.p = p
-        self.qf = Qfunc(k, p, Qfile=qfile, Rfile = rfile, npool = npool)
-        print("Q & R kernels created")
+        if ensfile is None:
+            self.qf = Qfunc(k, p, Qfile=qfile, Rfile = rfile, npool = npool, \
+                            extrapker = extrapker, saveqfile = saveqfile)
+            print("Q & R kernels created")
+
+            self.setup_dm()
+            print("Matter q-functions created")
+            self.setup_blocal()
+            print("Bias(local) q-functions created")
+            self.setup_bshear()
+            print("Shear q-functions created")
+
+        else:
+            print('Reading ENS File')
+            self.readens(ensfile)
 
         self.renorm = numpy.sqrt(numpy.pi/2.) #mcfit normaliztion
         self.tpi2 = 2*numpy.pi**2.
-        self.jn = 10 #number of bessels to sum over
+        self.jn = 20 #number of bessels to sum over
 
-        self.setup_dm()
-        print("Matter q-functions created")
-        self.setup_blocal()
-        print("Bias(local) q-functions created")
-        self.setup_bshear()
-        print("Shear q-functions created")
     
     def setup_dm(self):
         qf = self.qf
@@ -80,10 +86,13 @@ class CLEFT():
         qf = self.qf
         self.x10 = qf.x10()[1]
         self.y10 = qf.y10()[1]
-        self.u10 = qf.u1()[1]
+        self.u10 = qf.u10()[1]
+        self.u30 = qf.u3()[1]
         self.u11 = qf.u11()[1]
         self.u20 = qf.u20()[1]
         self.corr = qf.corr()[1]
+        #qil,  qih = np.where(self.qv>1e-2)[0][0], np.where(self.qv>300)[0][0]
+        #tpi = qf.loginterp(self.qv[qil:qih], tp[qil:qih])(self.qv)
 
     def setup_bshear(self):
         qf = self.qf
@@ -96,6 +105,60 @@ class CLEFT():
         self.y20 = 2*(3*js[1]**2 + 4*js[1]*js[2] + 2*js[1]*js[3] + 2*js[2]**2 + 4*js[2]*js[3] + js[3]**2)
         self.v10 = qf.v10()[1]
         self.zeta = qf.zeta()[1]
+
+
+    def readens(self, fname):
+
+        ens = np.loadtxt(fname).T
+        self.qv = ens[0]
+
+        #Linear
+        self.xi00lin = ens[1]
+        xi0lin = ens[2]
+        xi2lin = ens[3]
+        self.Xlin = 2/3.*(self.xi00lin - xi0lin - xi2lin)
+        ylinv = 2*xi2lin
+
+        #Since we divide by ylin, check for zeros
+        mask = (ylinv == 0)
+        ylinv[mask] = interpolate(self.qv[~mask], ylinv[~mask])(self.qv[mask])
+        self.Ylin = ylinv
+
+        #Useful variables here
+        self.XYlin = (self.Xlin + self.Ylin)
+        self.sigma = self.XYlin[-1]
+        self.yq = (1*self.Ylin/self.qv)
+
+        #Loop
+        self.xi00loop = ens[4] + ens[5]
+        xi0loop = ens[6] + ens[7]
+        xi2loop = ens[8] + ens[9]
+        self.Xloop = 2/3.*(self.xi00loop - xi0loop - xi2loop)
+        self.Yloop = 2*xi2loop
+        self.XYloop = (self.Xloop + self.Yloop)
+        self.sigmaloop = self.XYloop[-1]
+        
+        #Loop2
+        self.xi1loop = ens[10]
+        self.xi3loop = ens[11]
+        
+        self.corr = ens[12]
+        self.zeta = ens[13]
+        self.chi = ens[14]
+
+        self.u10 = ens[15]
+        self.u30 = ens[16]
+        self.u11 = ens[17]
+        self.u20 = ens[18]
+        
+        self.v10 = ens[19]
+        self.v12 = ens[20]
+        self.x10 = ens[21]
+        self.y10 = ens[22]
+        self.x20 = ens[23]
+        self.y20 = ens[24]
+        
+
 
 #####Do Bessel Integrals Here
 
@@ -113,6 +176,7 @@ def template0(k, func, extrap = False):
     if abs(func(k =k, l=0)[-1] ) > 1e-7:
         #print("Subtracting large scale constant = ", func(0)[-1], k)
         sigma2 = func(k = k, l= 0)[-1]
+        #print(sigma2)
         Fq -= sigma2
     ktemp, ftemp = \
             sph(qv, nu= 0, q=1.5)(Fq*renorm,extrap = extrap)
@@ -153,27 +217,38 @@ def integrate(func, pool, taylor = 0):
     return toret
 
 
-def make_table(cl, kmin = 1e-3, kmax = 3, nk = 100, npool = 2):
+def make_table(cl, kmin = 1e-3, kmax = 3, nk = 100, npool = 2, z = 0, M = 0.3):
     '''Make a table of different terms of P(k) between a given
-    'kmin', 'kmax' and for 'nk' equally spaced values in log10 of k
+    'kmin', 'kmax' and for 'nk' equally spaced values in log10 of k.
+    Called with a CLEFT object that has all the kernels.
+    The order is 
+    k, ZA, A, W, b1, b1^2, b2, b2^2, b1b2, bs2, b1bs2, b2bs2, bs2^2, bn, b1bn
+
+    Can specify a number of cores (npool), redshift(z) and Omega_m (M)
+    to calculate as a function of redshift
     '''
+
     header = "k[h/Mpc]   P_Zel   P_A    P_W    P_d    P_dd     P_d^2    P_d^2d^2 \
  P_dd^2    P_s^2    P_ds^2    P_d^2s^2   P_s^2s^2   P_D2d     P_dD2d"
 
     pktable = numpy.zeros([nk, len(header.split())])
+    dg2 = Dgrow(z, M)**2
+    dg4 = dg2**2
 
     global kv
     kv = numpy.logspace(numpy.log10(kmin), numpy.log10(kmax), nk)
 
     global qv, XYlin, sigma, yq, renorm, jn
-    qv, XYlin, sigma, yq, renorm, jn = cl.qv, cl.XYlin, cl.sigma, cl.yq, cl.renorm, cl.jn
+    qv, XYlin, sigma, yq, renorm, jn = cl.qv, cl.XYlin*dg2, cl.sigma*dg2, cl.yq*dg2, cl.renorm, cl.jn
 
     global Xlin, Ylin, Xloop, Yloop, xi1loop, xi3loop, x10, y10, x20, y20
     Xlin, Ylin, Xloop, Yloop, xi1loop, xi3loop, x10, y10, x20, y20 = \
-                cl.Xlin, cl.Ylin, cl.Xloop, cl.Yloop, cl.xi1loop, cl.xi3loop, cl.x10, cl.y10, cl.x20, cl.y20
+                cl.Xlin*dg2, cl.Ylin*dg2, cl.Xloop*dg4, cl.Yloop*dg4, cl.xi1loop*dg4, cl.xi3loop*dg4, \
+                cl.x10*dg4, cl.y10*dg4, cl.x20*dg4, cl.y20*dg4
 
-    global u10, u11, u20, v10, v12, corr, chi, zeta
-    u10, u11, u20, v10, v12, corr, chi, zeta = cl.u10, cl.u11, cl.u20, cl.v10, cl.v12, cl.corr, cl.chi, cl.zeta
+    global u10, u30, u11, u20, v10, v12, corr, chi, zeta
+    u10, u30, u11, u20, v10, v12, corr, chi, zeta = cl.u10*dg2, cl.u30*dg4, cl.u11*dg4, cl.u20*dg4, \
+                                                    cl.v10*dg4, cl.v12*dg4, cl.corr*dg2, cl.chi*dg4, cl.zeta*dg4
 
     
     pool = mp.Pool(npool)
@@ -195,6 +270,7 @@ def make_table(cl, kmin = 1e-3, kmax = 3, nk = 100, npool = 2):
     pktable[:,14] = np.zeros_like(kv)
 
     pool.close()
+    pool.join()
 
 
     del kv
@@ -203,11 +279,10 @@ def make_table(cl, kmin = 1e-3, kmax = 3, nk = 100, npool = 2):
 
     del Xlin, Ylin, Xloop, Yloop, xi1loop, xi3loop, x10, y10, x20, y20
 
-    del u10, u11, u20, v10, v12, corr, chi, zeta
+    del u10, u30, u11, u20, v10, v12, corr, chi, zeta
 
     return pktable
 
-    #pool.join()
 
 
 ###################################################################################
@@ -219,13 +294,13 @@ def aloop( k, l):
     return  -(Xloop + Yloop - 2*l*Yloop/Ylin/k**2.)  
 
 def wloop( k, l):
-    return  bool(l)*(6/5.*xi1loop - 6/5.*xi3loop  + 
-                      6*(l-1)*xi3loop/(k**2 *Ylin))/yq /k
+    return  bool(l)*(6/5.*xi1loop + 6/5.*xi3loop  -
+                    6*(l-1)*xi3loop/(k**2 *Ylin)) *1/(yq *k)
 
 def b1( k, l):
-    #return lambda l: -k**2 *(x10 + y10) + 2*l*y10/Ylin -2*qv* bool(l)*u10/Ylin
+    return  -k**2 *((x10*1.) + (y10*1.))  + 2*l* (y10*1.)/Ylin -2*qv* (u10+u30) * bool(l)/Ylin
     #Ad-hoc factor of 2 to match ZV files
-    return  -k**2 *(x10 *2. + y10 *2) + 2*l*y10*2/Ylin -2*qv* bool(l)*u10/Ylin
+    #return  -k**2 *((x10*2.) + (y10*2)) + 2*l* (y10*2)/Ylin -2*qv* bool(l)*(u10+u30)/Ylin
 
 def b1sq(  k, l):
     return  corr - k**2 *u10**2 + 2*l*u10**2/Ylin -qv* bool(l)*u11/Ylin
@@ -250,4 +325,29 @@ def b2bs2( k, l):
 
 def bs2sq(  k, l):
     return  zeta
+
+
+#Function to calculate growth factor
+
+def Dgrow(z, M, L = None, H0 = 100):
+    """return D(a)/D(1.)"""
+    a = 1/(1+z)
+    if L is None:
+        L = 1-M
+    logamin = -20.
+    Np = 1000
+    logx = numpy.linspace(logamin, 0, Np)
+    x = numpy.exp(logx)
+
+    Ea = lambda a: (a ** -1.5 * (M + (1 - M - L) * a + L * a ** 3) ** 0.5)
+
+    def kernel(loga):
+        a = numpy.exp(loga)
+        return (a * Ea(a = a)) ** -3 * a # da = a * d loga                                                                                            
+
+    y = Ea(a = x) * numpy.array([ romberg(kernel, logx.min(), loga, vec_func=True) for loga in logx])
+    
+    Da = interpolate(x, y)
+    return Da(a)/Da(1.)
+
 
