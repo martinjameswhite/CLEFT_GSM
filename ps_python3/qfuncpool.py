@@ -43,7 +43,7 @@ class Qfunc:
         self.ilR2 = self.loginterp(self.kr, self.R2)
 
         if saveqfile is not None:
-            save_qfunc(saveqfile)
+            self.save_qfunc(saveqfile)
             
 
 
@@ -422,7 +422,6 @@ class Qfunc:
         yint2 = interpolate(xint, yint, k = 5)
 
         return yint2
-
 
 
     
