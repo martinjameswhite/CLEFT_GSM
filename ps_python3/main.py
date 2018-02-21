@@ -44,6 +44,8 @@ if __name__=="__main__":
             rfile = s[:fmtpos] + '_cleftR_z%03d'%(args.z*100) + s[fmtpos:]
          if args.saveqfunc:
             qfuncfile = s[:fmtpos] + '_cleftqfunc_z%03d'%(args.z*100) + s[fmtpos:]
+         else:
+            qfuncfile = None
 
       #Create kernels
       cl = cpool.CLEFT(pfile = args.pfile, npool = args.npool, qfile = args.qfile, rfile = args.rfile, saveqfile=qfuncfile);
