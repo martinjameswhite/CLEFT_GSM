@@ -136,11 +136,12 @@ class Zeldovich:
         j0 is different since its exponent has sigma subtracted that is
         later used to suppress integral
         '''
-        Fq = 0
+        Fq = numpy.zeros_like(self.qv)
         if l:
             Fq = expon*func*self.yq**l
         elif j0:
             Fq = expon0*func
+            
             
         ktemp, ftemp = \
             sph(self.qv, nu= l, q=max(0, 1.5 - l))(Fq*self.renorm,\
