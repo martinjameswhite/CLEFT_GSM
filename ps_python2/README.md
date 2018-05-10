@@ -1,5 +1,5 @@
 # Power spectrum code
 
-We are in the process of developing/porting the power spectrum
-code to Python2.  This will be updated "soon".
+The Python2 routines have been deprecated.  The Python3 routines
+are in the ps_python3 directory above.
 
