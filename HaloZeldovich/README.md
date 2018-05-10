@@ -3,8 +3,8 @@
 Python(3) code to compute the Halo-Zeldovich and ZEFT models' power spectra
 of biased tracers, as described in Appendix B of Modi, White & Vlah (2017):
 
-Modi, White & Vlah, JCAP, submitted.
-https://arxiv.org/abs/1706.03173
+Modi, White & Vlah,
+JCAP, 08(2017)009, [https://arxiv.org/abs/1706.03173]
 
 This code can be used to model the Fourier, real-space, auto- and
 cross-correlations of biased tracers at large scales and high redshift,
