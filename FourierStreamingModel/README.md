@@ -1,8 +1,3 @@
-An attempt to calculate the Fourier-transformed density weighted velocity moments, and the resulting
-resummed redshift-space power spectrum.
-
-Structure stolen from the Halo-Zeldovich code in this repository, detailed the authors below:
-
 # Halo-Zeldovich/ZEFT power spectrum code
 
 Python(3) code to compute the Halo-Zeldovich and ZEFT models' power spectra
