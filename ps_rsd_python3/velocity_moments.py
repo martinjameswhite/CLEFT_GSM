@@ -1,11 +1,13 @@
 #
 from __future__ import print_function,division
 
-import numpy
+import numpy as np
 #import kernels
 from mcfit import SphericalBessel as sph
 #mcfit multiplies by sqrt(2/pi)*x**2 to the function. 
 #Divide the funciton by this to get the correct form 
+
+from matplotlib import pyplot as plt
 
 from scipy.integrate import quad
 from scipy.interpolate import InterpolatedUnivariateSpline as interpolate
@@ -34,15 +36,18 @@ class VelocityMoments:
         self.p     = p
         self.f     = f
         self.ilpk  = self.loginterp(k, p)
-        self.renorm=numpy.sqrt(numpy.pi/2.) #mcfit normaliztion
-        self.tpi2  = 2*numpy.pi**2.
-        self.qt    = numpy.logspace(-5, 5, 1e4)
-        self.kint  = numpy.logspace(-5, 5, 1e4)
-        self.jn    = 10 #number of bessels to sum over
+        self.renorm=np.sqrt(np.pi/2.) #mcfit normaliztion
+        self.tpi2  = 2*np.pi**2.
+        self.qt    = np.logspace(-5, 5, 1e4)
+        self.kint  = np.logspace(-5, 5, 1e4)
+        self.jn    = 5 #number of bessels to sum over
         
         # set up velocity table
+        self.pktable = None
+        self.num_power_components = 3
+        
         self.vktable = None
-        self.num_velocity_components = 3
+        self.num_velocity_components = 4
         
         self.setup()
         #
@@ -88,19 +93,19 @@ class VelocityMoments:
         rneff = derivative(yint, x[r], dx = x[r]*rdx, order = rorder)*x[r]/y[r]
         print('Log index on left & right edges are = ', lneff, rneff)
         #
-        xl = numpy.logspace(-18, numpy.log10(x[l]), 10**6.)
-        xr = numpy.logspace(numpy.log10(x[r]), 10., 10**6.)
+        xl = np.logspace(-18, np.log10(x[l]), 10**6.)
+        xr = np.logspace(np.log10(x[r]), 10., 10**6.)
         yl = y[l]*(xl/x[l])**lneff
         yr = y[r]*(xr/x[r])**rneff
         #
         xint = x[l+1:r].copy()
         yint = y[l+1:r].copy()
         if side.find("l") > -1:
-            xint = numpy.concatenate((xl, xint))
-            yint = numpy.concatenate((yl, yint))
+            xint = np.concatenate((xl, xint))
+            yint = np.concatenate((yl, yint))
         if side.find("r") > -1:
-            xint = numpy.concatenate((xint, xr))
-            yint = numpy.concatenate((yint, yr))
+            xint = np.concatenate((xint, xr))
+            yint = np.concatenate((yint, yr))
         yint2 = interpolate(xint, yint, k = 5)
         #
         return yint2
@@ -146,29 +151,79 @@ class VelocityMoments:
 
     #################
     #Bessel Integrals for \mu
-    def template(self, k, l, func, expon, expon0, suppress, j0 = True, power=1):
-        '''Generic template that is followed by mu integrals
+    def template(self, k, l, func, expon, suppress, power=1, za = False, expon_za = 1.):
+        ''' Simplified vs the original code. Beta.
+            Generic template that is followed by mu integrals
         j0 is different since its exponent has sigma subtracted that is
         later used to suppress integral
         '''
-        Fq = numpy.zeros_like(self.qv)
-        if l or ( power%2 == 1 ): # note that the angular integral for even powers of mu gives J_(l+1)
-            Fq = expon*func*self.yq**l
-        elif j0:
-            Fq = expon0*func
         
-        if power == 1:
-            ktemp, ftemp = \
-                sph(self.qv, nu= l+1, q=max(0, 1.5 - l))(Fq*self.renorm,\
-                extrap = False)
+        Fq = np.zeros_like(self.qv)
+        
+        if za == True and l == 0:
+            Fq = expon_za * func * self.yq**l
         else:
-            ktemp, ftemp = \
-                sph(self.qv, nu= l, q=max(0, 1.5 - l))(Fq*self.renorm,\
-                                                         extrap = False)
-        if l==0 and j0:
-            ftemp *= suppress
+            Fq = expon * func * self.yq**l
         
-        return 1* k**l * numpy.interp(k, ktemp, ftemp)
+        # note that the angular integral for even powers of mu gives J_(l+1)
+        ktemp, ftemp = sph(self.qv, nu= l+(power%2), q=max(0,1.5-l))(Fq*self.renorm,extrap = False)
+        
+        #        if l or ( power%2 == 1 ): # note that the angular integral for even powers of mu gives J_(l+1)
+        #    Fq = expon*func*self.yq**l
+        #elif j0:
+        #    Fq = expon0*func
+        #
+        #if power == 1:
+        #    ktemp, ftemp = \
+        #        sph(self.qv, nu= l+1, q=max(0, 1.5 - l))(Fq*self.renorm,\
+        #        extrap = False)
+        #            #else:
+        #            #ktemp, ftemp = \
+        #        sph(self.qv, nu= l, q=max(0, 1.5 - l))(Fq*self.renorm,\
+        #                                                 extrap = False)
+
+        ftemp *= suppress
+
+
+        return 1* k**l * np.interp(k, ktemp, ftemp)
+
+    
+    def p_integrals(self, k):
+        '''Since the templates function is modified this currently contains only a subset of terms.
+            
+            '''
+        ksq = k**2
+        expon = np.exp(-0.5*ksq * (self.XYlin - self.sigma))
+        exponm1 = np.expm1(-0.5*ksq * (self.XYlin - self.sigma))
+        suppress = np.exp(-0.5*ksq *self.sigma)
+
+        #
+        za, b1, b2 = 0, 0, 0
+        
+        #l indep functions
+        fza = 1.
+        fb1 = -2 * k * self.Ulin
+        #fb2sq = (self.corlin**2/2.)
+        #fb1b2 = (-2*self.qv*self.Ulin*self.corlin/self.Ylin)
+        #
+        
+        for l in range(self.jn):
+            #l-dep functions
+            fb2 = (2*l/self.Ylin/ksq - 1) * self.Ulin**2
+            #fb1sq = (self.corlin + (2*l/self.Ylin - k**2)*self.Ulin**2)
+            #fb2 = ((2*l/self.Ylin - k**2)*self.Ulin**2)
+            
+            #do integrals
+            za += self.template(k,l,fza,expon,suppress,power=0,za=True,expon_za=exponm1)
+            b1 += self.template(k,l,fb1,expon,suppress,power=1)
+            b2 += self.template(k,l,fb2,expon,suppress,power=0)
+            #Xdot += self.template(k,l,fXdot,expon,expon0,suppress,j0=True,power=0)
+            #Ydot += self.template(k,l,fYdot,expon,expon0,suppress,j0=True,power=1)
+        
+        
+        return 4*np.pi*np.array([za,b1,b2])
+
+    
     
     def v_integrals(self, k):
         '''Do the \mu integrals for various parameters for give 'k'
@@ -176,53 +231,56 @@ class VelocityMoments:
             (Commented out sections come from equivalent expressions for density power spectrum.)
         '''
         ksq = k**2
-        expon = numpy.exp(-0.5*ksq * self.XYlin)
-        expon0 = numpy.exp(-0.5*ksq * (self.XYlin - self.sigma))
-        expon0m1 = numpy.expm1(-0.5*ksq * (self.XYlin - self.sigma))
-        suppress = numpy.exp(-0.5*ksq *self.sigma)
-        
-        #
-        Xdot, Ydot, b1, = 0, 0, 0
+        expon = np.exp(-0.5*ksq * (self.XYlin - self.sigma))
+        exponm1 = np.expm1(-0.5*ksq * (self.XYlin - self.sigma))
+        suppress = np.exp(-0.5*ksq *self.sigma)
+
+        # Note: collect all constant offset terms into 'offset'
+        A_const, A_ldep, b1, offset = 0, 0, 0, 0
         
         #l indep functions
         fb1 = self.Ulin
-        fXdot = k * self.Xdot
-        
-        #fza = 1.
-        #fb2sq = (self.corlin**2/2.)
-        #fb1 = (-2*self.qv*self.Ulin/self.Ylin)
-        #fb1b2 = (-2*self.qv*self.Ulin*self.corlin/self.Ylin)
-        #
+        fA_const = k * (self.Xdot + self.Ydot - self.sigma)
+        foffset = k * self.sigma
+
         for l in range(self.jn):
             #l-dep functions
-            fYdot = k * (1. - 2*l/ksq/self.Ylin) * self.Ydot
-            #fb1sq = (self.corlin + (2*l/self.Ylin - k**2)*self.Ulin**2)
-            #fb2 = ((2*l/self.Ylin - k**2)*self.Ulin**2)
+            fA_ldep = k * ( - 2*l/ksq/self.Ylin) * self.Ydot
             
             #do integrals
-            b1 += self.template(k,l,fb1,expon,expon0,suppress,j0=False,power=1)
-            Xdot += self.template(k,l,fXdot,expon,expon0,suppress,j0=True,power=0)
-            Ydot += self.template(k,l,fYdot,expon,expon0,suppress,j0=True,power=1)
+            b1 += self.template(k,l,fb1,expon,suppress,power=1)
+            A_const += self.template(k,l,fA_const,expon,suppress,power=0)
+            A_ldep += self.template(k,l,fA_ldep,expon,suppress,power=0)
+            offset += self.template(k,l,foffset,expon,suppress,power=0,za=True,expon_za=exponm1)
+
         
-            #za   += self.template(k,l,fza,expon,expon0m1,suppress,j0=True)
-            #b1   += self.template(k,l,fb1,  expon,expon0,suppress,j0=False)
-            #b2   += self.template(k,l,fb2,  expon,expon0,suppress,j0=True)
-            #b1sq += self.template(k,l,fb1sq,expon,expon0,suppress,j0=True)
-            #b2sq += self.template(k,l,fb2sq,expon,expon0,suppress,j0=True)
-            #b1b2 += self.template(k,l,fb1b2,expon,expon0,suppress,j0=False)
-        
-        return 4*numpy.pi*numpy.array([Xdot, Ydot, b1])
+        return 4*np.pi*np.array([A_const, A_ldep, b1, offset])
+
+    def make_ptable(self, kmin = 1e-3, kmax = 3, nk = 100):
+        '''Make a table of different terms of P(k) between a given
+        'kmin', 'kmax' and for 'nk' equally spaced values in log10 of k
+        This is the most time consuming part of the code.
+        '''
+        self.pktable = np.zeros([nk, self.num_power_components+1]) # one column for ks
+        kv = np.logspace(np.log10(kmin), np.log10(kmax), nk)
+        self.pktable[:, 0] = kv[:]
+        for foo in range(nk):
+            self.pktable[foo, 1:] = self.p_integrals(kv[foo])
+
+
 
     def make_vtable(self, kmin = 1e-3, kmax = 3, nk = 100):
         '''Make a table of different terms of P(k) between a given
         'kmin', 'kmax' and for 'nk' equally spaced values in log10 of k
         This is the most time consuming part of the code.
         '''
-        self.vktable = numpy.zeros([nk, self.num_velocity_components+1]) # one column for ks
-        kv = numpy.logspace(numpy.log10(kmin), numpy.log10(kmax), nk)
+        self.vktable = np.zeros([nk, self.num_velocity_components+1]) # one column for ks
+        kv = np.logspace(np.log10(kmin), np.log10(kmax), nk)
         self.vktable[:, 0] = kv[:]
         for foo in range(nk):
             self.vktable[foo, 1:] = self.v_integrals(kv[foo])
+
+    
 
     def write_table(self,fn):
         '''Writes the table to an ascii text file, fn.'''
@@ -243,3 +301,21 @@ class VelocityMoments:
                 str += " %15.5e"%t
             ff.write(str+"\n")
         ff.close()
+
+
+def loglog_abs(x,y,color='k'):
+    '''Routine to make loglog plots where negative values are indicated by dashed lines.
+        Mostly for my own convenience.'''
+    
+    plt.loglog(x,y,color)
+    plt.loglog(x,-y,color+'--')
+    return None
+
+
+if __name__ == '__main__':
+    pks = np.loadtxt('pklin.test')
+    velda = VelocityMoments(pks[:,0],pks[:,1])
+    velda.make_ptable()
+    velda.make_vtable()
+
+
