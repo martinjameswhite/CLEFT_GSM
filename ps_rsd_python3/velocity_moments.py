@@ -47,7 +47,7 @@ class VelocityMoments:
         self.num_power_components = 3
         
         self.vktable = None
-        self.num_velocity_components = 4
+        self.num_velocity_components = 9
         
         self.setup()
         #
@@ -151,7 +151,7 @@ class VelocityMoments:
 
     #################
     #Bessel Integrals for \mu
-    def template(self, k, l, func, expon, suppress, power=1, za = False, expon_za = 1.):
+    def template(self, k, l, func, expon, suppress, power=1, za = False, expon_za = 1.,tilt=None):
         ''' Simplified vs the original code. Beta.
             Generic template that is followed by mu integrals
         j0 is different since its exponent has sigma subtracted that is
@@ -165,8 +165,13 @@ class VelocityMoments:
         else:
             Fq = expon * func * self.yq**l
         
+        if tilt is not None:
+            q = max(0,tilt-l)
+        else:
+            q = max(0,1.5-l)
+        
         # note that the angular integral for even powers of mu gives J_(l+1)
-        ktemp, ftemp = sph(self.qv, nu= l+(power%2), q=max(0,1.5-l))(Fq*self.renorm,extrap = False)
+        ktemp, ftemp = sph(self.qv, nu= l+(power%2), q=q)(Fq*self.renorm,extrap = False)
         
         #        if l or ( power%2 == 1 ): # note that the angular integral for even powers of mu gives J_(l+1)
         #    Fq = expon*func*self.yq**l
@@ -236,25 +241,37 @@ class VelocityMoments:
         suppress = np.exp(-0.5*ksq *self.sigma)
 
         # Note: collect all constant offset terms into 'offset'
-        A_const, A_ldep, b1, offset = 0, 0, 0, 0
+        A_const, A_ldep, b1, b1b2, b1sqpb2, b1sq, b1p, offset_za, offset_corlin = 0, 0, 0, 0, 0, 0, 0, 0, 0
         
         #l indep functions
-        fb1 = self.Ulin
+        fb1 = 2 * self.Udot
         fA_const = k * (self.Xdot + self.Ydot - self.sigma)
-        foffset = k * self.sigma
+        fb1b2 = 2 * self.corlin * self.Udot
+        
+        foffset_za   = 1 #offset for k*A term
+        foffset_corlin = self.corlin #offset for b1^2 term
 
         for l in range(self.jn):
             #l-dep functions
             fA_ldep = k * ( - 2*l/ksq/self.Ylin) * self.Ydot
+            fb1sqpb2 = 2 * (1 - 2*l/ksq/self.Ylin) * k * self.Ulin * self.Udot
+            fb1sq = k * self.corlin * (self.Xdot + (1 - 2*l/ksq/self.Ylin)*self.Ydot - self.sigma)
+            fb1p = -2 * k**2 * self.Ulin * (self.Xdot + (1 - 2*l/ksq/self.Ylin)*self.Ydot)
+            
             
             #do integrals
             b1 += self.template(k,l,fb1,expon,suppress,power=1)
             A_const += self.template(k,l,fA_const,expon,suppress,power=0)
             A_ldep += self.template(k,l,fA_ldep,expon,suppress,power=0)
-            offset += self.template(k,l,foffset,expon,suppress,power=0,za=True,expon_za=exponm1)
-
+            b1b2 += self.template(k,l,fb1b2,expon,suppress,power=1)
+            b1sqpb2 += self.template(k,l,fb1sqpb2,expon,suppress,power=0)
+            b1sq += self.template(k,l,fb1sq,expon,suppress,power=0)
+            b1p += self.template(k,l,fb1p,expon,suppress,power=1) # the other b1 term
+            offset_za += self.template(k,l,foffset_za,expon,suppress,power=0,za=True,expon_za=exponm1)
+            offset_corlin += self.template(k,l,foffset_corlin,expon,suppress,power=0)
+    
         
-        return 4*np.pi*np.array([A_const, A_ldep, b1, offset])
+        return 4*np.pi*np.array([A_const, A_ldep, b1, b1b2, b1sqpb2, b1sq, b1p, offset_za, offset_corlin])
 
     def make_ptable(self, kmin = 1e-3, kmax = 3, nk = 100):
         '''Make a table of different terms of P(k) between a given
@@ -315,7 +332,7 @@ def loglog_abs(x,y,color='k'):
 if __name__ == '__main__':
     pks = np.loadtxt('pklin.test')
     velda = VelocityMoments(pks[:,0],pks[:,1])
-    velda.make_ptable()
+    #velda.make_ptable()
     velda.make_vtable()
 
 
