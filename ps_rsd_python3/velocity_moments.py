@@ -49,6 +49,9 @@ class VelocityMoments:
         self.vktable = None
         self.num_velocity_components = 9
         
+        self.sparktable = None
+        self.num_spar_components = 5
+        
         self.setup()
         #
     def setup(self):
@@ -73,8 +76,12 @@ class VelocityMoments:
     
         # time derivatives (currently only at lowest order)
         self.Udot = self.f * self.Ulin
+        
         self.Xdot = self.f * self.Xlin
+        self.Xdotdot = self.f**2 * self.Xlin
+        
         self.Ydot = self.f * self.Ylin
+        self.Ydotdot = self.f**2 * self.Ylin
     
     ### Interpolate functions in log-sapce beyond the limits
     def loginterp(self, x, y, yint = None, side = "both",\
@@ -231,7 +238,7 @@ class VelocityMoments:
     
     
     def v_integrals(self, k):
-        '''Do the \mu integrals for various parameters for give 'k'
+        '''Do the \mu integrals in the pairwise velocity for various parameters for give 'k'
             (Currently for the pairwise velocity in k space.)
             (Commented out sections come from equivalent expressions for density power spectrum.)
         '''
@@ -272,6 +279,45 @@ class VelocityMoments:
     
         
         return 4*np.pi*np.array([A_const, A_ldep, b1, b1b2, b1sqpb2, b1sq, b1p, offset_za, offset_corlin])
+    
+    
+    
+    def spar_integrals(self, k):
+        '''Do the \mu integrals for various parameters for give 'k' in \sigma_{||}
+            (Currently for the pairwise velocity in k space.)
+            (Commented out sections come from equivalent expressions for density power spectrum.)
+            '''
+        ksq = k**2
+        expon = np.exp(-0.5*ksq * (self.XYlin - self.sigma))
+        exponm1 = np.expm1(-0.5*ksq * (self.XYlin - self.sigma))
+        suppress = np.exp(-0.5*ksq *self.sigma)
+        
+        # Note: collect all constant offset terms into 'offset'
+        A, b1,b2, b1sq, offset_za = 0, 0, 0, 0, 0
+        
+        #l indep functions
+
+
+        foffset_za   = -ksq *self.sigma**2 + self.sigma #offset for k*A term
+        #foffset_corlin = self.corlin #offset for b1^2 term
+        
+        for l in range(self.jn):
+            #l-dep functions
+            fb1 = -2 * k * ( (2*self.Udot*self.Xdot + self.Ulin * self.Xdotdot) + (2*self.Udot*self.Ydot + self.Ulin * self.Ydotdot) * (1 - 2*l/ksq/self.Ylin))
+            fA  = (-ksq*self.Xdot**2+self.Xdot) + (-ksq*2*self.Xdot*self.Ydot+self.Ydotdot)*(1-2*l/ksq/self.Ylin) + -ksq*self.Ydot**2 * (1-4*l/ksq/self.Ylin + 4*l*(l-1)/ksq**2/self.Ylin**2) - foffset_za
+            fb1sq = self.corlin*self.Xdotdot + (self.corlin*self.Ydotdot + 2*self.Udot**2)*(1-2*l/ksq/self.Ylin)
+            fb2 = 2 * self.Udot**2 * (1-2*l/ksq/self.Ylin)
+            
+            #do integrals
+            b1 += self.template(k,l,fb1,expon,suppress,power=1)
+            A  += self.template(k,l,fA,expon,suppress,power=0)
+            b1sq += self.template(k,l,fb1sq,expon,suppress,power=0)
+            b2 += self.template(k,l,fb2,expon,suppress,power=0)
+            offset_za += self.template(k,l,foffset_za,expon,suppress,power=0,za=True,expon_za=exponm1)
+        
+        
+        return 4*np.pi*np.array([b1,A,b1sq,b2,offset_za])
+    
 
     def make_ptable(self, kmin = 1e-3, kmax = 3, nk = 100):
         '''Make a table of different terms of P(k) between a given
@@ -297,7 +343,17 @@ class VelocityMoments:
         for foo in range(nk):
             self.vktable[foo, 1:] = self.v_integrals(kv[foo])
 
-    
+    def make_spartable(self, kmin = 1e-3, kmax = 3, nk = 100):
+        '''Make a table of different terms of P(k) between a given
+            'kmin', 'kmax' and for 'nk' equally spaced values in log10 of k
+            This is the most time consuming part of the code.
+        '''
+        self.sparktable = np.zeros([nk, self.num_spar_components+1]) # one column for ks
+        kv = np.logspace(np.log10(kmin), np.log10(kmax), nk)
+        self.sparktable[:, 0] = kv[:]
+        for foo in range(nk):
+            self.sparktable[foo, 1:] = self.spar_integrals(kv[foo])
+
 
     def write_table(self,fn):
         '''Writes the table to an ascii text file, fn.'''
@@ -333,6 +389,7 @@ if __name__ == '__main__':
     pks = np.loadtxt('pklin.test')
     velda = VelocityMoments(pks[:,0],pks[:,1])
     #velda.make_ptable()
-    velda.make_vtable()
+    #velda.make_vtable()
+    velda.make_spartable()
 
 
