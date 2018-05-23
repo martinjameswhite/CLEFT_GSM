@@ -52,6 +52,9 @@ class VelocityMoments:
         self.sparktable = None
         self.num_spar_components = 5
         
+        self.stracektable = None
+        self.num_strace_components = 5
+        
         self.setup()
         #
     def setup(self):
@@ -284,7 +287,6 @@ class VelocityMoments:
     
     def spar_integrals(self, k):
         '''Do the \mu integrals for various parameters for give 'k' in \sigma_{||}
-            (Currently for the pairwise velocity in k space.)
             (Commented out sections come from equivalent expressions for density power spectrum.)
             '''
         ksq = k**2
@@ -318,6 +320,39 @@ class VelocityMoments:
         
         return 4*np.pi*np.array([b1,A,b1sq,b2,offset_za])
     
+
+    def strace_integrals(self, k):
+        '''Do the \mu integrals for various parameters for give 'k' in Tr(\sigma)
+            (Commented out sections come from equivalent expressions for density power spectrum.)
+        '''
+        ksq = k**2
+        expon = np.exp(-0.5*ksq * (self.XYlin - self.sigma))
+        exponm1 = np.expm1(-0.5*ksq * (self.XYlin - self.sigma))
+        suppress = np.exp(-0.5*ksq *self.sigma)
+                
+        # Note: collect all constant offset terms into 'offset'
+        A, b1,b2, b1sq, offset_za = 0, 0, 0, 0, 0
+                    
+        #l indep functions
+        foffset_za   = -ksq * self.f * self.sigma**2 + 3 * self.f**2 * self.sigma #offset for k*A term
+                        
+        for l in range(self.jn):
+            #l-dep functions
+            fb1 = -2 * k * ( 2*(self.Xdot+self.Ydot)*self.Udot + self.Ulin*(self.Xdotdot+self.Ydotdot))
+            fA  = -ksq*self.Xdot**2 + 3*self.Xdotdot + self.Ydotdot - ksq * (self.Ydot**2+2*self.Xdot*self.Ydot)*(1-2*l/ksq/self.Ylin) - foffset_za
+            fb1sq = self.corlin*(3*self.Xdotdot+self.Ydotdot)+2*self.Udot**2
+            fb2 = 2 * self.Udot**2
+                            
+            #do integrals
+            b1 += self.template(k,l,fb1,expon,suppress,power=1)
+            A  += self.template(k,l,fA,expon,suppress,power=0)
+            b1sq += self.template(k,l,fb1sq,expon,suppress,power=0)
+            b2 += self.template(k,l,fb2,expon,suppress,power=0)
+            offset_za += self.template(k,l,foffset_za,expon,suppress,power=0,za=True,expon_za=exponm1)
+                                    
+                                    
+        return 4*np.pi*np.array([b1,A,b1sq,b2,offset_za])
+
 
     def make_ptable(self, kmin = 1e-3, kmax = 3, nk = 100):
         '''Make a table of different terms of P(k) between a given
@@ -353,6 +388,19 @@ class VelocityMoments:
         self.sparktable[:, 0] = kv[:]
         for foo in range(nk):
             self.sparktable[foo, 1:] = self.spar_integrals(kv[foo])
+
+    def make_stracetable(self, kmin = 1e-3, kmax = 3, nk = 100):
+        '''Make a table of different terms of P(k) between a given
+            'kmin', 'kmax' and for 'nk' equally spaced values in log10 of k
+            This is the most time consuming part of the code.
+        '''
+        self.stracektable = np.zeros([nk, self.num_strace_components+1]) # one column for ks
+        kv = np.logspace(np.log10(kmin), np.log10(kmax), nk)
+        self.stracektable[:, 0] = kv[:]
+        for foo in range(nk):
+            self.stracektable[foo, 1:] = self.strace_integrals(kv[foo])
+
+
 
 
     def write_table(self,fn):
@@ -391,5 +439,5 @@ if __name__ == '__main__':
     #velda.make_ptable()
     #velda.make_vtable()
     velda.make_spartable()
-
+    velda.make_stracetable()
 
