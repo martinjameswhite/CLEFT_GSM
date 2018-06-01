@@ -18,16 +18,16 @@ from cleftpool import CLEFT
 
 class VelocityMoments(CLEFT):
     '''
-    Class to evaluate the Zeldovich velocity moments.
+    Class to evaluate the cleft velocity moments.
     
     '''
-    def __init__(self, k, p, f=1,loop_corrs=False):
+    def __init__(self, f=1, **kw):
         '''k,p are the linear theory power spectra in compatible units,
         e.g. h/Mpc and (Mpc/h)^3.
             f is the growth-factor derivative'''
         
         # do the X, Y, etc. integrals
-        CLEFT.__init__(self,k=k,p=p,loop_corrs=loop_corrs)
+        CLEFT.__init__(self,**kw)
         self.f = f 
         
         # set up velocity table
@@ -46,8 +46,6 @@ class VelocityMoments(CLEFT):
         self.setup_dm()
         self.setup_time_derivatives()
     
-        
-        
         #
     def setup_time_derivatives(self):
         '''

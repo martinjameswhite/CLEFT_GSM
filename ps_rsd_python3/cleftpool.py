@@ -21,7 +21,7 @@ class CLEFT():
     '''
     
     def __init__(self, k = None, p = None, pfile = None, qfile = None, rfile = None, ensfile = None, \
-                 npool = 4, extrapker = True, saveqfile = None, saveQRfile = None, jn = 10, loop_corrs = False):
+                 npool = 4, extrapker = True, saveqfile = None, saverfile = None, saveQRfile = None, jn = 10, loop_corrs = False):
         if pfile is None:
             if p is None:
                 print("Specify the power sepctrum file or the array")
@@ -31,9 +31,18 @@ class CLEFT():
         self.p = p
         self.loop_corrs = loop_corrs
         if ensfile is None:
+            
+            print(saveQRfile)
             self.qf = Qfunc(k, p, Qfile=qfile, Rfile = rfile, npool = npool, \
                             extrapker = extrapker, saveqfile = saveqfile)
             print("Q & R kernels created")
+            
+            
+            
+            if saveQRfile:
+                print("Saving Q and R kernels.")
+                self.save_qr(saveqfile,saverfile)
+            
 
             self.setup_dm()
             print("Matter q-functions created")
@@ -51,7 +60,10 @@ class CLEFT():
         self.jn = jn #number of bessels to sum over
         
 
-    
+    def save_qr(self,qfile='qs.txt',rfile='rs.txt'):
+        np.savetxt(qfile,[self.qf.kq, self.qf.Q1, self.qf.Q2, self.qf.Q3, self.qf.Q5, self.qf.Q8, self.qf.Qs2])
+        np.savetxt(rfile,[self.qf.kq, self.qf.R1, self.qf.R2])
+
     def setup_dm(self):
         qf = self.qf
 

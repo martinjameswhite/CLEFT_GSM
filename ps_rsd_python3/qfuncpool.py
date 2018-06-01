@@ -27,7 +27,8 @@ class Qfunc:
         if Qfile is None:
             self.kq, self.Q1, self.Q2, self.Q3, self.Q5, self.Q8, self.Qs2 = self.calc_Q()
         else:
-            self.kq, self.Q1, self.Q2, self.Q3, self.Q5, self.Q8, self.Qs2  = numpy.loadtxt(Qfile, unpack=True)
+            print("Reading in Qs from"+Qfile)
+            self.kq, self.Q1, self.Q2, self.Q3, self.Q5, self.Q8, self.Qs2  = numpy.loadtxt(Qfile)
         self.ilQ1 = self.loginterp(self.kq, self.Q1, rp = -5)
         self.ilQ2 = self.loginterp(self.kq, self.Q2, rp = -5)
         self.ilQ3 = self.loginterp(self.kq, self.Q3, rp = -5)
@@ -38,7 +39,9 @@ class Qfunc:
         if Rfile is None:
             self.kr, self.R1, self.R2 = self.calc_R()
         else:
-            self.kr, self.R1, self.R2  = numpy.loadtxt(Rfile, unpack=True)
+            print("Reading in Rs from"+Rfile)
+            self.kr, self.R1, self.R2  = numpy.loadtxt(Rfile)
+
         self.ilR1 = self.loginterp(self.kr, self.R1)
         self.ilR2 = self.loginterp(self.kr, self.R2)
 
