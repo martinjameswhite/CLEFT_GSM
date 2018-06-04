@@ -32,16 +32,16 @@ class VelocityMoments(CLEFT):
         
         # set up velocity table
         self.pktable = None
-        self.num_power_components = 3
+        self.num_power_components = 5
         
         self.vktable = None
-        self.num_velocity_components = 7
+        self.num_velocity_components = 10
         
         self.sparktable = None
-        self.num_spar_components = 5
+        self.num_spar_components = 8
         
         self.stracektable = None
-        self.num_strace_components = 5
+        self.num_strace_components = 8
         
         self.setup_dm()
         self.setup_time_derivatives()
@@ -49,8 +49,11 @@ class VelocityMoments(CLEFT):
         #
     def setup_time_derivatives(self):
         '''
-        Create time derivatives.
+        Create time derivatives. The factors of n in time derivatives is annoying...
         '''
+        
+        qf = self.qf
+        
         # time derivatives (currently only at lowest order)
         self.Udot = self.f * self.Ulin
         
@@ -60,6 +63,43 @@ class VelocityMoments(CLEFT):
         self.Ydot = self.f * self.Ylin
         self.Ydotdot = self.f**2 * self.Ylin
     
+        # add one loop
+        print("Computing loops for time derivatives.")
+        xi0loop013 = qf.xi0loop013()
+        xi0loop13 = qf.xi0loop13()[1]
+        xi2loop13 = qf.xi2loop13()[1]
+        
+        xi0loop022 = qf.xi0loop022()
+        xi0loop22 = qf.xi0loop22()[1]
+        xi2loop22 = qf.xi2loop22()[1]
+        
+        # important note: the X13 terms coded in cleftpool correspond to X13 + X31 = 2*X13; this is different from the Zvonomir's GSM paper, explaining the factors of two...
+        
+        self.Xdot1loop = self.f * 2./3 * (2 * (xi0loop013 - xi0loop13 - xi2loop13) + 2*(xi0loop022 - xi0loop22 - xi2loop22 ) )
+        self.Ydot1loop = self.f * 2 * ( 2*xi2loop13 + 2*xi2loop22 )
+
+        self.X10dot = self.f * 3./2 * self.x10
+        self.Y10dot = self.f * 3./2 * self.y10
+        
+        self.X10ddot = self.f**2 * 2 * self.x10
+        self.Y10ddot = self.f**2 * 2 * self.y10
+        
+        self.Udot1loop = self.f * 3 * self.u30
+        
+        self.U11dot = self.f * 2 * self.u11
+        self.U20dot = self.f * 2 * self.u20
+
+        self.Xddot1loop = self.f**2 * 2./3 * (3 * (xi0loop013 - xi0loop13 - xi2loop13) + 4*(xi0loop022 - xi0loop22 - xi2loop22 ) )
+        self.Yddot1loop = self.f**2 * 2 * ( 3*xi2loop13 + 4*xi2loop22   )
+    
+        self.xi0loop013 = xi0loop013
+        self.xi0loop13 = xi0loop13
+        self.xi2loop13 = xi2loop13
+
+        self.xi0loop022 = xi0loop022
+        self.xi0loop22 = xi0loop22
+        self.xi2loop22 = xi2loop22
+
     ### Interpolate functions in log-sapce beyond the limits
     def loginterp(self, x, y, yint = None, side = "both",\
                   lorder = 15, rorder = 15, lp = 1, rp = -1, \
@@ -187,18 +227,28 @@ class VelocityMoments(CLEFT):
         suppress = np.exp(-0.5*ksq *self.sigma)
 
         #
-        za, b1, b2 = 0, 0, 0
+        za, b1, b2, Aloop, offset_loops = 0, 0, 0, 0, 0
         
         #l indep functions
         fza = 1.
         fb1 = -2 * k * self.Ulin
         #fb2sq = (self.corlin**2/2.)
         #fb1b2 = (-2*self.qv*self.Ulin*self.corlin/self.Ylin)
+        foffset_loops = -0.5*ksq*2./3 * (self.xi0loop013 + self.xi0loop022)
         #
         
         for l in range(self.jn):
             #l-dep functions
             fb2 = (2*l/self.Ylin/ksq - 1) * self.Ulin**2
+
+            X13 = 2./3 * (self.xi0loop013 - self.xi0loop13 - self.xi2loop13)
+            X22 = 2./3 * (self.xi0loop022 - self.xi0loop22 - self.xi2loop22)
+            Y13 = 2*self.xi2loop13
+            Y22 = 2*self.xi2loop22
+            
+            fAloop = -0.5 * ksq * ( X13 + X22 + (1 - 2*l/ksq/self.Ylin) * (Y13 + Y22) ) - foffset_loops
+            
+            
             #fb1sq = (self.corlin + (2*l/self.Ylin - k**2)*self.Ulin**2)
             #fb2 = ((2*l/self.Ylin - k**2)*self.Ulin**2)
             
@@ -206,11 +256,13 @@ class VelocityMoments(CLEFT):
             za += self.template(k,l,fza,expon,suppress,power=0,za=True,expon_za=exponm1)
             b1 += self.template(k,l,fb1,expon,suppress,power=1)
             b2 += self.template(k,l,fb2,expon,suppress,power=0)
+            Aloop += self.template(k,l,fAloop,expon,suppress,power=0)
+            offset_loops += self.template(k,l,foffset_loops,expon,suppress,power=0,za=True,expon_za=exponm1)
             #Xdot += self.template(k,l,fXdot,expon,expon0,suppress,j0=True,power=0)
             #Ydot += self.template(k,l,fYdot,expon,expon0,suppress,j0=True,power=1)
         
         
-        return 4*np.pi*np.array([za,b1,b2])
+        return 4*np.pi*np.array([za,b1,b2,Aloop,offset_loops])
 
     
     
@@ -225,33 +277,48 @@ class VelocityMoments(CLEFT):
         suppress = np.exp(-0.5*ksq *self.sigma)
 
         # Note: collect all constant offset terms into 'offset'
-        A, b1, b1b2, b1sqpb2, b1sq, offset_za, offset_corlin = 0, 0, 0, 0, 0, 0, 0
+        A, Aloop, W, b1, b2, b1b2, b1sq, offset_za, offset_Aloop, offset_b1= 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
         
         #l indep functions
         fb1b2 = 2 * self.corlin * self.Udot
         
         foffset_za   = k * self.f * self.sigma #offset for k*A term
-        foffset_corlin = k * self.f * self.sigma * self.corlin #offset for b1^2 term
+        foffset_Aloop = k*self.Xdot1loop[-1] #technically just the zero lag term but this is safer
+        #foffset_corlin = k * self.f * self.sigma * self.corlin #offset for b1^2 term
+        foffset_b1 = 2 * k * self.X10dot[-1]
 
         for l in range(self.jn):
             #l-dep functions
             fA = k * (self.Xdot + self.Ydot - self.f * self.sigma) + k * ( - 2*l/ksq/self.Ylin) * self.Ydot
+            fAloop = k * (self.Xdot1loop + self.Ydot1loop) + k * ( - 2*l/ksq/self.Ylin) * self.Ydot1loop - foffset_Aloop
+
             fb1sqpb2 = 2 * (1 - 2*l/ksq/self.Ylin) * k * self.Ulin * self.Udot
-            fb1sq = k * self.corlin * (self.Xdot + (1 - 2*l/ksq/self.Ylin)*self.Ydot - self.f * self.sigma)
-            fb1 = 2 * self.Udot - 2 * k**2 * self.Ulin * (self.Xdot + (1 - 2*l/ksq/self.Ylin)*self.Ydot)
+            fb2 = self.U20dot
+            fb1sq = k * self.corlin * (self.Xdot + (1 - 2*l/ksq/self.Ylin)*self.Ydot)
+            fb1sq_odd = self.U11dot
+            #fb1sq = k * self.corlin * (self.Xdot + (1 - 2*l/ksq/self.Ylin)*self.Ydot - self.f * self.sigma) + fb1sqpb2
+
+            fb1 = 2 * self.Udot - 2 * ksq * self.Ulin * (self.Xdot + (1 - 2*l/ksq/self.Ylin)*self.Ydot) + 2 * self.Udot1loop
+            fb1_even = 2 * k * (self.X10dot+self.Y10dot*(1 - 2*l/ksq/self.Ylin)) - foffset_b1
             
             
             #do integrals
-            b1 += self.template(k,l,fb1,expon,suppress,power=1)
+            b1 += self.template(k,l,fb1,expon,suppress,power=1) + self.template(k,l,fb1_even,expon,suppress,power=0)
             A += self.template(k,l,fA,expon,suppress,power=0)
+            Aloop += self.template(k,l,fAloop,expon,suppress,power=0)
             b1b2 += self.template(k,l,fb1b2,expon,suppress,power=1)
-            b1sqpb2 += self.template(k,l,fb1sqpb2,expon,suppress,power=0)
-            b1sq += self.template(k,l,fb1sq,expon,suppress,power=0)
+
+            b1sqpb2 = self.template(k,l,fb1sqpb2,expon,suppress,power=0)
+            b2 += self.template(k,l,fb2,expon,suppress,power=1) + b1sqpb2
+            b1sq += self.template(k,l,fb1sq,expon,suppress,power=0) + self.template(k,l,fb1sq_odd,expon,suppress,power=1) + b1sqpb2
+
             offset_za += self.template(k,l,foffset_za,expon,suppress,power=0,za=True,expon_za=exponm1)
-            offset_corlin += self.template(k,l,foffset_corlin,expon,suppress,power=0)
+            offset_Aloop += self.template(k,l,foffset_Aloop,expon,suppress,power=0,za=True,expon_za=exponm1)
+            offset_b1 += self.template(k,l,foffset_b1,expon,suppress,power=0,za=True,expon_za=exponm1)
+
     
         
-        return 4*np.pi*np.array([A, b1, b1b2, b1sqpb2, b1sq, offset_za, offset_corlin])
+        return 4*np.pi*np.array([A, Aloop,W,b1, b2, b1b2, b1sq, offset_za, offset_Aloop, offset_b1])
     
     
     
@@ -265,34 +332,40 @@ class VelocityMoments(CLEFT):
         suppress = np.exp(-0.5*ksq *self.sigma)
         
         # Note: collect all constant offset terms into 'offset'
-        A, b1,b2, b1sq, offset_za = 0, 0, 0, 0, 0
+        A, Aloop, b1,b2, b1sq, offset_za, offset_Aloop, offset_b1 = 0, 0, 0, 0, 0, 0, 0, 0
         
         #l indep functions
 
         # pick the first or second offset based on which A term below
         foffset_za   = -ksq * self.f**2 * self.sigma**2 + self.f**2 * self.sigma #offset for k*A term
         foffset_za   = self.f**2 * self.sigma
+        foffset_Aloop = self.Xddot1loop[-1] -ksq * self.f**2 * self.sigma**2
+        foffset_b1 = 2 * self.X10ddot[-1]
         
         for l in range(self.jn):
             #l-dep functions
             fb1 = -2 * k * ( (2*self.Udot*self.Xdot + self.Ulin * self.Xdotdot) + (2*self.Udot*self.Ydot + self.Ulin * self.Ydotdot) * (1 - 2*l/ksq/self.Ylin))
+            fb1_even = 2 * (self.X10ddot + self.Y10ddot * (1-2*l/ksq/self.Ylin)) - foffset_b1
             # keeping all terms present if field quadratic
-            fA  = (-ksq*self.Xdot**2+self.Xdot) + (-ksq*2*self.Xdot*self.Ydot+self.Ydotdot)*(1-2*l/ksq/self.Ylin) + -ksq*self.Ydot**2 * (1-4*l/ksq/self.Ylin + 4*l*(l-1)/ksq**2/self.Ylin**2) - foffset_za
+            fA  = (-ksq*self.Xdot**2+self.Xdot) + (-ksq*2*self.Xdot*self.Ydot+self.Ydotdot)*(1-2*l/ksq/self.Ylin) -ksq*self.Ydot**2 * (1-4*l/ksq/self.Ylin + 4*l*(l-1)/ksq**2/self.Ylin**2) - foffset_za
             # for keeping to order P only; pick this to agree with Zvonimir's code
             fA  = (self.Xdotdot) + (self.Ydotdot)*(1-2*l/ksq/self.Ylin) - foffset_za
+            fAloop = self.Xddot1loop + self.Yddot1loop*(1-2*l/ksq/self.Ylin) -ksq*self.Xdot**2 -ksq*2*self.Xdot*self.Ydot*(1-2*l/ksq/self.Ylin) - ksq*self.Ydot**2 * (1-4*l/ksq/self.Ylin + 4*l*(l-1)/ksq**2/self.Ylin**2) - foffset_Aloop
             
             fb1sq = self.corlin*self.Xdotdot + (self.corlin*self.Ydotdot + 2*self.Udot**2)*(1-2*l/ksq/self.Ylin)
             fb2 = 2 * self.Udot**2 * (1-2*l/ksq/self.Ylin)
             
             #do integrals
-            b1 += self.template(k,l,fb1,expon,suppress,power=1)
+            b1 += self.template(k,l,fb1,expon,suppress,power=1) + self.template(k,l,fb1_even,expon,suppress,power=0)
             A  += self.template(k,l,fA,expon,suppress,power=0)
             b1sq += self.template(k,l,fb1sq,expon,suppress,power=0)
             b2 += self.template(k,l,fb2,expon,suppress,power=0)
             offset_za += self.template(k,l,foffset_za,expon,suppress,power=0,za=True,expon_za=exponm1)
+            offset_Aloop += self.template(k,l,foffset_Aloop,expon,suppress,power=0,za=True,expon_za=exponm1)
+            offset_b1 += self.template(k,l,foffset_b1,expon,suppress,power=0,za=True,expon_za=exponm1)
         
         
-        return 4*np.pi*np.array([b1,A,b1sq,b2,offset_za])
+        return 4*np.pi*np.array([b1,A,Aloop,b1sq,b2,offset_za,offset_Aloop,offset_b1])
     
     
     def strace_integrals(self, k):
@@ -305,34 +378,44 @@ class VelocityMoments(CLEFT):
         suppress = np.exp(-0.5*ksq *self.sigma)
         
         # Note: collect all constant offset terms into 'offset'
-        A, b1,b2, b1sq, offset_za = 0, 0, 0, 0, 0
+        A, Aloop, b1,b2, b1sq, offset_za, offset_loops, offset_b1 = 0, 0, 0, 0, 0, 0, 0, 0
         
         #l indep functions
         # pick the first or second offset based on which A term below
         foffset_za   = -ksq * self.f**2 * self.sigma**2 + 3 * self.f**2 * self.sigma #offset for k*A term
         foffset_za = 3 * self.f**2 * self.sigma
         
+        #note: technically the second piece is just the sum of the zero lag pieces but
+        # I am not coding it in for convenience
+        foffset_loops = -ksq * self.f**2 * self.sigma**2 + 3*self.Xddot1loop[-1]
+        foffset_b1 = 6 * self.X10ddot[-1]
+        
+        
         for l in range(self.jn):
             #l-dep functions
             fb1 = -2 * k * ( 2*(self.Xdot+self.Ydot)*self.Udot + self.Ulin*(self.Xdotdot+self.Ydotdot))
+            fb1_even = 2 * (3*self.X10ddot + self.Y10ddot) - foffset_b1
             
             # keeping all terms present if field quadratic
             fA  = -ksq*self.Xdot**2 + 3*self.Xdotdot + self.Ydotdot - ksq * (self.Ydot**2+2*self.Xdot*self.Ydot)*(1-2*l/ksq/self.Ylin) - foffset_za
             # for keeping to order P only; pick this to agree with Zvonimir's code
             fA  =  3*self.Xdotdot + self.Ydotdot - foffset_za #if we keep only to order P
+            fAloop = 3*self.Xddot1loop + self.Yddot1loop - ksq*(self.Xdot+self.Ydot)**2 + 2*l*(self.Ydot**2+2*self.Ydot*self.Xdot)/self.Ylin - foffset_loops
             
             fb1sq = self.corlin*(3*self.Xdotdot+self.Ydotdot)+2*self.Udot**2
             fb2 = 2 * self.Udot**2
                             
             #do integrals
-            b1 += self.template(k,l,fb1,expon,suppress,power=1)
+            b1 += self.template(k,l,fb1,expon,suppress,power=1) + self.template(k,l,fb1_even,expon,suppress,power=0)
             A  += self.template(k,l,fA,expon,suppress,power=0)
+            Aloop += self.template(k,l,fAloop,expon,suppress,power=0)
             b1sq += self.template(k,l,fb1sq,expon,suppress,power=0)
             b2 += self.template(k,l,fb2,expon,suppress,power=0)
             offset_za += self.template(k,l,foffset_za,expon,suppress,power=0,za=True,expon_za=exponm1)
+            offset_loops += self.template(k,l,foffset_loops,expon,suppress,power=0,za=True,expon_za=exponm1)
+            offset_b1 += self.template(k,l,foffset_b1,expon,suppress,power=0,za=True,expon_za=exponm1)
                                     
-                                    
-        return 4*np.pi*np.array([b1,A,b1sq,b2,offset_za])
+        return 4*np.pi*np.array([b1,A,Aloop,b1sq,b2,offset_za,offset_loops,offset_b1])
 
 
     def make_ptable(self, kmin = 1e-3, kmax = 3, nk = 100):
