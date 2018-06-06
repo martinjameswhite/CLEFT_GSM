@@ -38,10 +38,10 @@ class VelocityMoments(CLEFT):
         self.num_velocity_components = 10
         
         self.sparktable = None
-        self.num_spar_components = 8
+        self.num_spar_components = 9
         
         self.stracektable = None
-        self.num_strace_components = 8
+        self.num_strace_components = 9
         
         self.setup_dm()
         self.setup_time_derivatives()
@@ -341,7 +341,7 @@ class VelocityMoments(CLEFT):
         suppress = np.exp(-0.5*ksq *self.sigma)
         
         # Note: collect all constant offset terms into 'offset'
-        A, Aloop, b1,b2, b1sq, offset_za, offset_Aloop, offset_b1 = 0, 0, 0, 0, 0, 0, 0, 0
+        A, Aloop,W, b1,b2, b1sq, offset_za, offset_Aloop, offset_b1 = 0, 0, 0, 0, 0, 0, 0, 0, 0
         
         #l indep functions
 
@@ -361,12 +361,16 @@ class VelocityMoments(CLEFT):
             fA  = (self.Xdotdot) + (self.Ydotdot)*(1-2*l/ksq/self.Ylin) - foffset_za
             fAloop = self.Xddot1loop + self.Yddot1loop*(1-2*l/ksq/self.Ylin) -ksq*self.Xdot**2 -ksq*2*self.Xdot*self.Ydot*(1-2*l/ksq/self.Ylin) - ksq*self.Ydot**2 * (1-4*l/ksq/self.Ylin + 4*l*(l-1)/ksq**2/self.Ylin**2) - foffset_Aloop
             
+            fW  = - 5 * self.f**2 * k * (self.v + (1 - 2*l/ksq/self.Ylin)*self.T112)
+            
             fb1sq = self.corlin*self.Xdotdot + (self.corlin*self.Ydotdot + 2*self.Udot**2)*(1-2*l/ksq/self.Ylin)
             fb2 = 2 * self.Udot**2 * (1-2*l/ksq/self.Ylin)
             
             #do integrals
             b1 += self.template(k,l,fb1,expon,suppress,power=1) + self.template(k,l,fb1_even,expon,suppress,power=0)
-            A  += self.template(k,l,fA,expon,suppress,power=0)
+            A     += self.template(k,l,fA,expon,suppress,power=0)
+            Aloop += self.template(k,l,fAloop,expon,suppress,power=0)
+            W += self.template(k,l,fW,expon,suppress,power=1)
             b1sq += self.template(k,l,fb1sq,expon,suppress,power=0)
             b2 += self.template(k,l,fb2,expon,suppress,power=0)
             offset_za += self.template(k,l,foffset_za,expon,suppress,power=0,za=True,expon_za=exponm1)
@@ -374,7 +378,7 @@ class VelocityMoments(CLEFT):
             offset_b1 += self.template(k,l,foffset_b1,expon,suppress,power=0,za=True,expon_za=exponm1)
         
         
-        return 4*np.pi*np.array([b1,A,Aloop,b1sq,b2,offset_za,offset_Aloop,offset_b1])
+        return 4*np.pi*np.array([A,Aloop,W,b1, b1sq,b2,offset_za,offset_Aloop,offset_b1])
     
     
     def strace_integrals(self, k):
@@ -387,7 +391,7 @@ class VelocityMoments(CLEFT):
         suppress = np.exp(-0.5*ksq *self.sigma)
         
         # Note: collect all constant offset terms into 'offset'
-        A, Aloop, b1,b2, b1sq, offset_za, offset_loops, offset_b1 = 0, 0, 0, 0, 0, 0, 0, 0
+        A, Aloop,W, b1,b2, b1sq, offset_za, offset_loops, offset_b1 = 0, 0, 0, 0, 0, 0, 0, 0, 0
         
         #l indep functions
         # pick the first or second offset based on which A term below
@@ -413,18 +417,22 @@ class VelocityMoments(CLEFT):
             
             fb1sq = self.corlin*(3*self.Xdotdot+self.Ydotdot)+2*self.Udot**2
             fb2 = 2 * self.Udot**2
+            
+            fW = - self.f**2 * k * (18 * self.v1 + 7 * self.v3 + 5 * self.T112)
                             
             #do integrals
             b1 += self.template(k,l,fb1,expon,suppress,power=1) + self.template(k,l,fb1_even,expon,suppress,power=0)
             A  += self.template(k,l,fA,expon,suppress,power=0)
             Aloop += self.template(k,l,fAloop,expon,suppress,power=0)
+            W += self.template(k,l,fW,expon,suppress,power=0)
             b1sq += self.template(k,l,fb1sq,expon,suppress,power=0)
             b2 += self.template(k,l,fb2,expon,suppress,power=0)
             offset_za += self.template(k,l,foffset_za,expon,suppress,power=0,za=True,expon_za=exponm1)
             offset_loops += self.template(k,l,foffset_loops,expon,suppress,power=0,za=True,expon_za=exponm1)
             offset_b1 += self.template(k,l,foffset_b1,expon,suppress,power=0,za=True,expon_za=exponm1)
+        
                                     
-        return 4*np.pi*np.array([b1,A,Aloop,b1sq,b2,offset_za,offset_loops,offset_b1])
+        return 4*np.pi*np.array([A,Aloop,W, b1, b1sq,b2,offset_za,offset_loops,offset_b1])
 
 
     def make_ptable(self, kmin = 1e-3, kmax = 3, nk = 100):
