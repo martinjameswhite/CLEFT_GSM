@@ -257,6 +257,13 @@ class Qfunc:
         integrand *= (-3./7.)/(kint**3 *self.tpi2)
         return self.dosph(1, kint, integrand, tilt = tilt)
 
+    def S(self, kint = None, tilt = 0.5):
+        #NOTE: has to be further divided by q upon integrating to get the actual S. Note the tilt.
+        if kint is None:
+            kint = self.kint
+        integrand = self.ilQ1(kint) + 2*self.ilQ2(kint) + 2*self.ilR1(kint) + 4*self.ilR2(kint)
+        integrand *= (3./7.)/(kint**4 *self.tpi2)
+        return self.dosph(2, kint, integrand, tilt = tilt)
 
     #U
     def u10(self, kint = None, tilt = 1.5):

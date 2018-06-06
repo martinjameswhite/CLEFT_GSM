@@ -91,7 +91,12 @@ class VelocityMoments(CLEFT):
 
         self.Xddot1loop = self.f**2 * 2./3 * (3 * (xi0loop013 - xi0loop13 - xi2loop13) + 4*(xi0loop022 - xi0loop22 - xi2loop22 ) )
         self.Yddot1loop = self.f**2 * 2 * ( 3*xi2loop13 + 4*xi2loop22   )
-    
+        
+        self.v1 = qf.v1()[1] + qf.S()[1]/self.qv
+        self.v3 = qf.v3()[1] + qf.S()[1]/self.qv
+        self.v  = 2 * self.v1 + self.v3
+        self.T112  = qf.t112()[1]
+        
         self.xi0loop013 = xi0loop013
         self.xi0loop13 = xi0loop13
         self.xi2loop13 = xi2loop13
@@ -301,6 +306,8 @@ class VelocityMoments(CLEFT):
             fb1 = 2 * self.Udot - 2 * ksq * self.Ulin * (self.Xdot + (1 - 2*l/ksq/self.Ylin)*self.Ydot) + 2 * self.Udot1loop
             fb1_even = 2 * k * (self.X10dot+self.Y10dot*(1 - 2*l/ksq/self.Ylin)) - foffset_b1
             
+            fW  = - 2 * self.f * ksq * (self.v + (1 - 2*l/ksq/self.Ylin)*self.T112)
+            
             
             #do integrals
             b1 += self.template(k,l,fb1,expon,suppress,power=1) + self.template(k,l,fb1_even,expon,suppress,power=0)
@@ -311,6 +318,8 @@ class VelocityMoments(CLEFT):
             b1sqpb2 = self.template(k,l,fb1sqpb2,expon,suppress,power=0)
             b2 += self.template(k,l,fb2,expon,suppress,power=1) + b1sqpb2
             b1sq += self.template(k,l,fb1sq,expon,suppress,power=0) + self.template(k,l,fb1sq_odd,expon,suppress,power=1) + b1sqpb2
+
+            W += self.template(k,l,fW,expon,suppress,power=1)
 
             offset_za += self.template(k,l,foffset_za,expon,suppress,power=0,za=True,expon_za=exponm1)
             offset_Aloop += self.template(k,l,foffset_Aloop,expon,suppress,power=0,za=True,expon_za=exponm1)
