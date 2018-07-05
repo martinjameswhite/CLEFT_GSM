@@ -35,7 +35,7 @@ class VelocityMoments(CLEFT):
         self.num_power_components = 5
         
         self.vktable = None
-        self.num_velocity_components = 10
+        self.num_velocity_components = 12
         
         self.sparktable = None
         self.num_spar_components = 9
@@ -92,10 +92,13 @@ class VelocityMoments(CLEFT):
         self.Xddot1loop = self.f**2 * 2./3 * (3 * (xi0loop013 - xi0loop13 - xi2loop13) + 4*(xi0loop022 - xi0loop22 - xi2loop22 ) )
         self.Yddot1loop = self.f**2 * 2 * ( 3*xi2loop13 + 4*xi2loop22   )
         
-        self.v1 = qf.v1()[1] + qf.S()[1]/self.qv
-        self.v3 = qf.v3()[1] + qf.S()[1]/self.qv
+        #self.v1 = qf.v1()[1] + qf.S()[1]/self.qv
+        #self.v3 = qf.v3()[1] + qf.S()[1]/self.qv
+        # 'alt' version has better convergence due to noncancellation of terms
+        self.v1 = qf.v1alt()[1] + qf.Salt()[1]
+        self.v3 = qf.v3alt()[1] + qf.Salt()[1]
         self.v  = 2 * self.v1 + self.v3
-        self.T112  = qf.t112()[1]
+        self.T112  = qf.t112(tilt=0.5)[1]
         
         self.xi0loop013 = xi0loop013
         self.xi0loop13 = xi0loop13
@@ -282,7 +285,7 @@ class VelocityMoments(CLEFT):
         suppress = np.exp(-0.5*ksq *self.sigma)
 
         # Note: collect all constant offset terms into 'offset'
-        A, Aloop, W, b1, b2, b1b2, b1sq, offset_za, offset_Aloop, offset_b1= 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        A, Aloop, W, b1, b2, b1b2, b1sq, offset_za, offset_Aloop, offset_b1_1, offset_b1_2,offset_b1_3= 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
         
         #l indep functions
         fb1b2 = 2 * self.corlin * self.Udot
@@ -310,9 +313,9 @@ class VelocityMoments(CLEFT):
             
             
             #do integrals
-            b1 += self.template(k,l,fb1,expon,suppress,power=1) + self.template(k,l,fb1_even,expon,suppress,power=0)
-            A += self.template(k,l,fA,expon,suppress,power=0)
-            Aloop += self.template(k,l,fAloop,expon,suppress,power=0)
+            b1 += self.template(k,l,fb1,expon,suppress,power=1) + self.template(k,l,fb1_even,expon,suppress,power=0) + self.template(k,l,foffset_b1,expon,suppress,power=0,za=True,expon_za=exponm1)
+            A += self.template(k,l,fA,expon,suppress,power=0) + self.template(k,l,foffset_za,expon,suppress,power=0,za=True,expon_za=exponm1)
+            Aloop += self.template(k,l,fAloop,expon,suppress,power=0) + self.template(k,l,foffset_Aloop,expon,suppress,power=0,za=True,expon_za=exponm1)
             b1b2 += self.template(k,l,fb1b2,expon,suppress,power=1)
 
             b1sqpb2 = self.template(k,l,fb1sqpb2,expon,suppress,power=0)
@@ -321,13 +324,14 @@ class VelocityMoments(CLEFT):
 
             W += self.template(k,l,fW,expon,suppress,power=1)
 
-            offset_za += self.template(k,l,foffset_za,expon,suppress,power=0,za=True,expon_za=exponm1)
-            offset_Aloop += self.template(k,l,foffset_Aloop,expon,suppress,power=0,za=True,expon_za=exponm1)
-            offset_b1 += self.template(k,l,foffset_b1,expon,suppress,power=0,za=True,expon_za=exponm1)
-
-    
+            # these are now all comparison terms
+            offset_za += self.template(k,l,fb1sq,expon,suppress,power=0) + b1sqpb2
+            offset_Aloop += self.template(k,l,fb1sq_odd,expon,suppress,power=1)
+            offset_b1_1 += self.template(k,l,fb1-2*self.Udot1loop,expon,suppress,power=1)
+            offset_b1_2 += self.template(k,l,2*self.Udot1loop,expon,suppress,power=1)
+            offset_b1_3 += self.template(k,l,fb1_even,expon,suppress,power=0) + self.template(k,l,foffset_b1,expon,suppress,power=0,za=True,expon_za=exponm1)
         
-        return 4*np.pi*np.array([A, Aloop,W,b1, b2, b1b2, b1sq, offset_za, offset_Aloop, offset_b1])
+        return 4*np.pi*np.array([A, Aloop, W, b1, b2, b1b2, b1sq, offset_za, offset_Aloop, offset_b1_1,offset_b1_2,offset_b1_3])
     
     
     

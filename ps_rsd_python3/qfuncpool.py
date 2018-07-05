@@ -265,6 +265,27 @@ class Qfunc:
         integrand *= (3./7.)/(kint**4 *self.tpi2)
         return self.dosph(2, kint, integrand, tilt = tilt)
 
+    def v1alt(self, kint=None, tilt=0.5):
+        if kint is None:
+            kint = self.kint
+        integrand = -3 * self.ilR1(kint) + 4 * self.ilR2(kint) + self.ilQ1(kint) + 2*self.ilQ2(kint)
+        integrand *= (3./35)/(kint**3 *self.tpi2)
+        return self.dosph(1, kint, integrand, tilt = tilt)
+    
+    def v3alt(self,kint=None,tilt=0.5):
+        if kint is None:
+            kint = self.kint
+        integrand = 2 * self.ilR1(kint) + 4 * self.ilR2(kint) -4* self.ilQ1(kint) + 2*self.ilQ2(kint)
+        integrand *= (3./35)/(kint**3 *self.tpi2)
+        return self.dosph(1, kint, integrand, tilt = tilt)
+            
+    def Salt(self,kint=None,tilt=0.5):
+        if kint is None:
+            kint = self.kint
+        integrand = 2 * self.ilR1(kint) + 4 * self.ilR2(kint) + self.ilQ1(kint) + 2*self.ilQ2(kint)
+        integrand *= (3./35)/(kint**3 *self.tpi2)
+        return self.dosph(3, kint, integrand, tilt = tilt)
+
     #U
     def u10(self, kint = None, tilt = 1.5):
         if kint is None:
