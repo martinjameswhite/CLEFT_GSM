@@ -1,17 +1,16 @@
 # Python wrapper class for LSM.
-from __future__ import print_function,division
 
-
-import numpy       as np
+import numpy  as np
 import socket
 import ctypes
 import os
 
+# Find out where we are.
+fullpath = os.path.dirname(__file__)
 
 
 class LSM:
-    """
-    LSM:
+    """  
     A Python class to conviently "wrap" calls to the
     Lagrangian streaming model (LSM) code.
     This uses temporary files to pass the information around.
@@ -20,7 +19,7 @@ class LSM:
     __version__ = "1.0"
     __email__  = "mwhite@berkeley.edu"
     #
-    def __call__(self,pkfile,ff,b1,b2,bs,Aeft,Aeft1,s2FoG,Apar,Aperp):
+    def __call__(self,pkfile,ff,b1,b2,bs,Aeft,Aeft1,s2FoG,Apar=1.0,Aperp=1.0):
         """    
         Runs the code and returns a NumPy array containing
         the data returned by the code.
@@ -28,12 +27,12 @@ class LSM:
         """
         Aeft2 = 0.0
         os.environ['OMP_NUM_THREADS']=str(self.Nthread)
-        ret = self.mylib.call_lesm(ctypes.c_char_p(pkfile),\
+        ret = self.mylib.call_lesm(ctypes.c_char_p(pkfile.encode('utf-8')),\
           ctypes.c_double(ff),ctypes.c_double(b1),ctypes.c_double(b2),\
           ctypes.c_double(bs),ctypes.c_double(Aeft),\
           ctypes.c_double(Aeft1),ctypes.c_double(Aeft2),\
           ctypes.c_double(s2FoG),ctypes.c_double(Apar),ctypes.c_double(Aperp),\
-          ctypes.c_char_p(self.tmpfn))
+          ctypes.c_char_p(self.tmpfn.encode('utf-8')))
         if (ret==0)&(os.path.isfile(self.tmpfn)):
             dd = np.loadtxt(self.tmpfn)
             os.remove(self.tmpfn)
@@ -41,19 +40,20 @@ class LSM:
             outstr = "LESM call failed with: "+pkfile+","+str(ff)+","+str(b1)+\
                      ","+str(b2)+","+str(bs)+","+str(Aeft)+","+str(Aeft1)+","+\
                      str(s2FoG)+","+str(Apar)+","+str(Aperp)
-            raise RuntimeError,outstr
+            raise(RuntimeError,outstr)
             dd = None
         return(dd)
         #
     def __init__(self, Nthread = 1):
         """
-        __init__(self):
+        Initialize the class...very lightweight.
         """
         # Basic initialization, including a temporary file
         # whose name is based on the current host, PPID and PID.
         self.tmpfn = "lesm_%s_%d_%d.txt"%\
           (socket.gethostname(),os.getppid(),os.getpid())
-        self.mylib = ctypes.CDLL("./libcleft.so")
+        #self.mylib = ctypes.CDLL("./libcleft.so")
+        self.mylib   = ctypes.CDLL(fullpath+"/libcleft.so")
         self.Nthread = Nthread
     #
 
