@@ -1,4 +1,6 @@
 import numpy
+import os
+package_path = os.path.dirname(os.path.abspath(__file__))+'/'
 from scipy.interpolate import InterpolatedUnivariateSpline as interpolate
 from scipy.integrate import trapz, simps
 from itertools import product
@@ -91,7 +93,7 @@ def Q(kv, pk, npool = 4, ns = None, kintv = None):
     pkint = ilpk(kint)
 
     tol = 10**-5. 
-    glxval, glwval = numpy.loadtxt("gl_128.txt", unpack = True)
+    glxval, glwval = numpy.loadtxt(package_path + "/gl_128.txt", unpack = True)
     glxval = glxval.reshape(1, -1)
     glwval = glwval.reshape(1, -1)
 
@@ -170,7 +172,7 @@ def R(kv, pk, npool = 4, ns = None, kintv = None):
     pkint = ilpk(kint)
 
     tol = 10**-5. 
-    glxval, glwval = numpy.loadtxt("gl_128.txt", unpack = True)
+    glxval, glwval = numpy.loadtxt(package_path + "/gl_128.txt", unpack = True)
     glxval = glxval.reshape(1, -1)
     glwval = glwval.reshape(1, -1)
 

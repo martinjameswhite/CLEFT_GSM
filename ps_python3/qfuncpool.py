@@ -261,7 +261,7 @@ class Qfunc:
             kint = self.kint
         integrand = -1*kint*self.ilpk(kint)
         integrand /= (kint**2.*self.tpi2)
-        return self.dosph(1, kint, integrand, tilt = tilt, q1 = 1e-5, q2 = 1000)
+        return self.dosph(1, kint, integrand, tilt = tilt, q1 = 1e-4, q2 = 500)
         
     
     def u3(self, kint = None, tilt = 1.5):
@@ -270,7 +270,7 @@ class Qfunc:
         #U3 in Martin's code
         integrand = (-5./21)*kint*self.ilR1(kint)
         integrand /= (kint**2.*self.tpi2)
-        return self.dosph(1, kint, integrand, tilt = tilt, q1 = 1e-5, q2 = 1000)
+        return self.dosph(1, kint, integrand, tilt = tilt, q1 = 1e-5, q2 = 500)
 
     def u11(self, kint = None, tilt = 1.5):
         if kint is None:
@@ -284,7 +284,7 @@ class Qfunc:
             kint = self.kint
         integrand = (-3./7)* kint* self.ilQ8(kint) 
         integrand /= (kint**2.*self.tpi2)
-        return self.dosph(1, kint, integrand, tilt = tilt, q1 = 1e-5, q2 = 1000)
+        return self.dosph(1, kint, integrand, tilt = tilt, q1 = 1e-5, q2 = 500)
 
     #x10&y10 loop
     #These are off by factor of 2 from ZV files so that factor is added in
@@ -406,6 +406,17 @@ class Qfunc:
             print( 'In function - ', inspect.getouterframes( inspect.currentframe() )[2][3])
             print('WARNING: Runaway index on right side, bad interpolation. Reft index = %0.3e at %0.3e'%(rneff, x[r]))
 
+##        while (lneff <= 0) or (lneff > 1):
+##            lneff = derivative(yint, x[l], dx = x[l]*ldx, order = lorder)*x[l]/y[l]
+##            l +=1
+##            if niter > 100: continue
+##        print('Left slope = %0.3f at point '%lneff, l)
+##        niter = 0
+##        while (rneff < -3) or (rneff > -2):
+##            rneff = derivative(yint, x[r], dx = x[r]*rdx, order = rorder)*x[r]/y[r]
+##            r -= 1
+##            if niter > 100: continue
+##
         xl = numpy.logspace(-12, numpy.log10(x[l]), 10**5.)
         xr = numpy.logspace(numpy.log10(x[r]), 12., 10**5.)
         yl = y[l]*(xl/x[l])**lneff

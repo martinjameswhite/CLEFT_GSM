@@ -14,7 +14,9 @@ import multiprocessing as mp
 
 class CLEFT():
     '''
-    Class to evaluate CLEFT kernels to calculate Power Spectrum Components given a linear power spectrum k, p.
+    Class to evaluate CLEFT kernels to calculate Power Spectrum Components given a linear power spectrum
+    in the form or 'k', 'p'
+    or a power spectrum file - 'pfile'
     # bn and b1bn are not implemented yet
     '''
     
