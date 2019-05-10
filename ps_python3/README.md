@@ -1,7 +1,15 @@
 # Power spectrum code
 
-Python code to compute the mode-coupling integrals and hence the real-space
-power spectrum of biased tracers from Convolution Lagrangian Effective Field
+Python code to compute the real-space auto- and cross-correlations of biased tracers
+for the ZEFT, Halo-Zeldovich and GSM models as described in
+
+C.Modi, M.White, Z.Vlah
+
+Modeling CMB Lensing Cross Correlations with CLEFT
+
+JCAP, 08(2017)009, [https://arxiv.org/abs/1706.03173]
+
+The underlying theory is based upon Convolution Lagrangian Effective Field
 Theory, as described in:
 
 Z.Vlah, E.Castorina, M.White
@@ -9,6 +17,8 @@ Z.Vlah, E.Castorina, M.White
 The Gaussian streaming model and Convolution Lagrangian effective field theory
 
 JCAP 12(2016)007, [https://arxiv.org/abs/1609.02908]
+
+
 
 The code is parallelized using 'pool' object in python. 
 
