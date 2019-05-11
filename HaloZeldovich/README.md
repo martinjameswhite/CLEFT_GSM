@@ -1,5 +1,8 @@
 # Halo-Zeldovich/ZEFT power spectrum code
 
+**This code is now deprecated in favor of the ps_python3 code, which
+  has the same functionality if you pass order=1 as the argument**
+
 Python(3) code to compute the Halo-Zeldovich and ZEFT models' power spectra
 of biased tracers, as described in Appendix B of Modi, White & Vlah (2017):
 
