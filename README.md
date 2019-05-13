@@ -27,4 +27,4 @@ Modeling CMB Lensing Cross Correlations with CLEFT
 
 JCAP, 08(2017)009, [https://arxiv.org/abs/1706.03173]
 
-This code is available in the HaloZeldovich and ps_python3 directories.
+This code is available in the ps_python3 directory.
