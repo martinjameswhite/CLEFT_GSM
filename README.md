@@ -15,11 +15,12 @@ called from Python (wrappers provided).
 The C++ version in "config2pt" currently only implements the
 configuration-space statistics (i.e. the correlation function).
 The Fortran routines in "ps_fortran" provide an implementation of
-the power spectrum routines.
+the power spectrum routines, but we recommend using the Python
+versions instead.
 
-We additionally provide fast and simple Python routines for computing the ZEFT,
-Halo-Zeldovich and GSM models' real-space auto- and cross-correlations of
-biased tracers as described in
+We provide fast and simple Python routines for computing the power spectrum
+in the ZEFT, Halo-Zeldovich and GSM models including real-space auto- and
+cross-correlations of biased tracers as described in
 
 C.Modi, M.White, Z.Vlah
 
