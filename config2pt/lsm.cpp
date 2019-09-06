@@ -564,7 +564,7 @@ LSM::dvsPair(const double rval)
                 vv[6] +=    pref *qf[4];
                 vv[7] +=    pref *g[2];
                 vv[8] +=    pref *shear_v;
-                vv[9] +=    pref *V12z;
+                vv[9] +=  2*pref *V12z;
 
                 double Wg=0;
                 for (int i=0; i<3; ++i) Wg += Wddot[9*i+3*2+2]*g[i];
