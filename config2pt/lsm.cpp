@@ -527,7 +527,7 @@ LSM::dvsPair(const double rval)
                 shear *= 2;
 
                 // The mode-coupling term, then add the <s^2 Delta Delta> term:
-                double shear_v=4*ef[15]*g[2];
+                double shear_v=4*ef[15]*qh[2];
                 for (int i=0; i<3; ++i) {
                     double upsilon= qh[i]*qh[2]*(3*qf[6]*qf[6]+4*qf[6]*qf[7]+
                                 2*qf[6]*qf[8]+2*qf[7]*qf[7]+4*qf[7]*qf[8]+
