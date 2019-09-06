@@ -527,7 +527,7 @@ LSM::dvsPair(const double rval)
                 shear *= 2;
 
                 // The mode-coupling term, then add the <s^2 Delta Delta> term:
-                double shear_v=2*ef[15]*g[2];
+                double shear_v=4*ef[15]*g[2];
                 for (int i=0; i<3; ++i) {
                     double upsilon= qh[i]*qh[2]*(3*qf[6]*qf[6]+4*qf[6]*qf[7]+
                                 2*qf[6]*qf[8]+2*qf[7]*qf[7]+4*qf[7]*qf[8]+
@@ -535,7 +535,8 @@ LSM::dvsPair(const double rval)
                     shear_v -= g[i]*upsilon;
                 }
                 shear_v *= 2;
-                double V12=qf[9]*gq;
+                double V12 =qf[9]*gq;
+                double V12z=qf[9]*qh[2];
 
                 // Now do the 1, Fp, Fpp, Fp^2, Fp.Fpp, Fpp^2, b_nabla^2,
                 // bs, b1.bs2, b2.bs2, bs2^2 terms.
@@ -563,7 +564,7 @@ LSM::dvsPair(const double rval)
                 vv[6] +=    pref *qf[4];
                 vv[7] +=    pref *g[2];
                 vv[8] +=    pref *shear_v;
-                vv[9] +=    pref *V12;
+                vv[9] +=    pref *V12z;
 
                 double Wg=0;
                 for (int i=0; i<3; ++i) Wg += Wddot[9*i+3*2+2]*g[i];
