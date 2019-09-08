@@ -579,8 +579,8 @@ LSM::dvsPair(const double rval)
                 ss[ 3] +=    pref *(2*UL[2]*UL[2]+xiL*Alin[3*2+2]);
                 ss[ 4]  =  0;
                 ss[ 5]  =  0;
-                ss[ 6]  =    pref *2*shear_s;
-                ss[ 7]  =    pref *1*qf[3];
+                ss[ 6] +=    pref *2*shear_s;
+                ss[ 7] +=    pref *1*qf[3];
                 // Next work out the trace components, i.e. summed over n=m.
                 Wg=0;
                 for (int i=0; i<3; ++i)
@@ -613,8 +613,8 @@ LSM::dvsPair(const double rval)
                 ss[11] +=    pref *(2*U2+xiL*trAL);
                 ss[12]  =  0;
                 ss[13]  =  0;
-                ss[14]  =    pref *2*shear_s;
-                ss[15]  =    pref *3*qf[3];
+                ss[14] +=    pref *2*shear_s;
+                ss[15] +=    pref *3*qf[3];
             }
         }
     }
