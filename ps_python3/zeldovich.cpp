@@ -380,8 +380,8 @@ public:
     XXLin.resize(Nfft);
     YYLin.resize(Nfft);
     YqLin.resize(Nfft);
-    const double lnqmin=log(1e-3);
-    const double lnqmax=log(1e3);
+    const double lnqmin=log(1e-4);
+    const double lnqmax=log(1e4);
 #pragma omp parallel for shared(qqLin)
     for (int i=0; i<Nfft; ++i)
       qqLin[i] = exp( lnqmin+(i+0.5)*(lnqmax-lnqmin)/Nfft );
@@ -471,6 +471,14 @@ public:
     const int Lmax=8;
     FFTlog<Nfft> fftlog(qqLin,Lmax);
     fftlog.init();
+    // Set up an apodization function.
+    std::vector<double> ap(Nfft);
+    const int Npad=256;
+#pragma omp parallel for shared(ap)
+    for (int i=0; i<Nfft; ++i)
+      ap[i] = 0.5*(1.0+tanh(0.125*(i-Npad))) *
+              0.5*(1.0+tanh(0.125*(Nfft-Npad-i)));
+    // Now compute P(k) as a sum of Hankel transforms:
     double ret=0,pk=0;
     for (int ell=0; ell<Lmax; ++ell) {
       if (ell==0) {
@@ -482,7 +490,7 @@ public:
                          b2* 1*( -k2*U2 ) +
                          b1*b1*( xiLin[i]-k2*U2 ) +
                          b1*b2*( 0 ) +
-                         b2*b2*( 0.5*xiLin[i]*xiLin[i] ) );
+                         b2*b2*( 0.5*xiLin[i]*xiLin[i] ) ) * ap[i];
         }
       }
       else {
@@ -494,7 +502,7 @@ public:
                          b2* 1*( (2*ell/YYLin[i]-k2)*U2 ) +
                          b1*b1*( xiLin[i]+(2*ell/YYLin[i]-k2)*U2 ) +
                          b1*b2*( -2*xiLin[i]*UULin[i]/YqLin[i] ) +
-                         b2*b2*( 0.5*xiLin[i]*xiLin[i] ) );
+                         b2*b2*( 0.5*xiLin[i]*xiLin[i] ) ) * ap[i];
         }
       }
       fftlog.sph(ell,false);
@@ -542,6 +550,8 @@ int	main(int argc, char **argv)
     std::cout<<std::scientific<<std::setw(15)<<std::setprecision(5)<<kk
              <<std::scientific<<std::setw(15)<<std::setprecision(5)
              <<zel.power(kk,0.0,0.0)
+             <<std::scientific<<std::setw(15)<<std::setprecision(5)
+             <<zel.power(kk,1.0,0.0)
              <<std::scientific<<std::setw(15)<<std::setprecision(5)
              <<zel.power(kk,0.0,1.0)<<std::endl;
   }
