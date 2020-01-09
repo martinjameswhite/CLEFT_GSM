@@ -46,3 +46,6 @@ pk = cleftpool.make_table(cl, kmin = 0.002, kmax = 1, nk = 200, npool=32, z = 1,
 
 - Timing: With 32 cores on a single node of Cori-jupyter hub, it takes ~35 seconds to
 compute power spectra at 200 k-values.
+
+
+We have also provided a C++ version of the tree-level code (zeldovich.cpp), though this is far less thoroughly debugged and less robust in its current implementation (see test_cpp.sh for an example) largely because it does not careful treat extrapolation of "short" P(k) input files.  
