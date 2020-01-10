@@ -380,8 +380,8 @@ public:
     XXLin.resize(Nfft);
     YYLin.resize(Nfft);
     YqLin.resize(Nfft);
-    const double lnqmin=log(1e-4);
-    const double lnqmax=log(1e4);
+    const double lnqmin=log(1e-3);
+    const double lnqmax=log(3e4);
 #pragma omp parallel for shared(qqLin)
     for (int i=0; i<Nfft; ++i)
       qqLin[i] = exp( lnqmin+(i+0.5)*(lnqmax-lnqmin)/Nfft );
