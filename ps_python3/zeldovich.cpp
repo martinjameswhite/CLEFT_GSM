@@ -354,7 +354,8 @@ protected:
   }
 public:
   std::vector<double>	qqLin,xiLin,UULin,XXLin,YYLin,YqLin;
-  double sigma2;
+  std::vector<double>	XsLin,YsLin,VVLin,zetaLin,chiLin;
+  double sigma2,shear_sig2;
   Zeldovich(const char fname[]) {
     kval.resize(Nfft);
     Pval.resize(Nfft);
@@ -386,11 +387,24 @@ public:
     for (int i=0; i<Nfft; ++i)
       qqLin[i] = exp( lnqmin+(i+0.5)*(lnqmax-lnqmin)/Nfft );
     // Set up the FFTlog class.
-    const int Lmax=3;
+    const int Lmax=5;
     FFTlog<Nfft> fftlog(kval,Lmax);
     fftlog.init();
+    // Set up some useful powers of kk.
+    std::vector<double> kp2(Nfft),km2(Nfft);
+#pragma omp parallel for shared(kval,kp2,km2)
+    for (int i=0; i<Nfft; ++i) {
+      kp2[i] =     kval[i]*kval[i];
+      km2[i] = 1.0/kval[i]/kval[i];
+    }
     // First compute the xi_ell^n:
     std::vector<double>	xi0m0(Nfft),xi0m2(Nfft),xi1m1(Nfft),xi2m2(Nfft);
+    // extra xi_ell^n for shear terms:
+    std::vector<double>	xi2p0(Nfft),xi4p0(Nfft),xi1p1(Nfft),xi3p1(Nfft);
+    std::vector<double>	xi3m1(Nfft),xi0p2(Nfft),xi2p2(Nfft);
+    // We could in principle do this with a std::map to keep all of
+    // the xi_ell_n arrays neatly organized, but this seemed easier
+    // at the time:
     // ell=0; n=0:
     if (true) {
       fftlog.fq = Pval;
@@ -403,7 +417,7 @@ public:
     // ell=0; n=-2:
     if (true) {
       for (int i=0; i<Nfft; ++i)
-        fftlog.fq[i] = Pval[i] / kval[i] / kval[i];
+        fftlog.fq[i] = Pval[i] * km2[i];
       fftlog.sph(0,true);
       Spline ss(fftlog.ks,fftlog.fq);
       for (int i=0; i<Nfft; ++i)
@@ -421,11 +435,64 @@ public:
     // ell=2; n=-2:
     if (true) {
       for (int i=0; i<Nfft; ++i)
-        fftlog.fq[i] = Pval[i] / kval[i] / kval[i];
+        fftlog.fq[i] = Pval[i] * km2[i];
       fftlog.sph(2,true);
       Spline ss(fftlog.ks,fftlog.fq);
       for (int i=0; i<Nfft; ++i)
         xi2m2[i] = ss(qqLin[i]);
+    }
+    // Now the shear terms...
+    // ell=2; n=0:
+    if (true) {
+      fftlog.fq = Pval;
+      fftlog.sph(2,true);
+      Spline ss(fftlog.ks,fftlog.fq);
+      for (int i=0; i<Nfft; ++i)
+        xi2p0[i] = ss(qqLin[i]);
+    }
+    // ell=4; n=0:
+    if (true) {
+      fftlog.fq = Pval;
+      fftlog.sph(4,true);
+      Spline ss(fftlog.ks,fftlog.fq);
+      for (int i=0; i<Nfft; ++i)
+        xi4p0[i] = ss(qqLin[i]);
+    }
+    // ell=0; n=+2:
+    if (true) {
+      for (int i=0; i<Nfft; ++i)
+        fftlog.fq[i] = Pval[i] * kp2[i];
+      fftlog.sph(0,true);
+      Spline ss(fftlog.ks,fftlog.fq);
+      for (int i=0; i<Nfft; ++i)
+        xi0p2[i] = ss(qqLin[i]);
+    }
+    // ell=1; n=+1:
+    if (true) {
+      for (int i=0; i<Nfft; ++i)
+        fftlog.fq[i] = Pval[i] * kval[i];
+      fftlog.sph(1,true);
+      Spline ss(fftlog.ks,fftlog.fq);
+      for (int i=0; i<Nfft; ++i)
+        xi1p1[i] = ss(qqLin[i]);
+    }
+    // ell=3; n=+1:
+    if (true) {
+      for (int i=0; i<Nfft; ++i)
+        fftlog.fq[i] = Pval[i] * kval[i];
+      fftlog.sph(3,true);
+      Spline ss(fftlog.ks,fftlog.fq);
+      for (int i=0; i<Nfft; ++i)
+        xi3p1[i] = ss(qqLin[i]);
+    }
+    // ell=3; n=-1:
+    if (true) {
+      for (int i=0; i<Nfft; ++i)
+        fftlog.fq[i] = Pval[i] / kval[i];
+      fftlog.sph(3,true);
+      Spline ss(fftlog.ks,fftlog.fq);
+      for (int i=0; i<Nfft; ++i)
+        xi3m1[i] = ss(qqLin[i]);
     }
     // Now set up the "q" functions.
     XXLin.resize(Nfft);
@@ -441,6 +508,24 @@ public:
       YqLin[i] = YYLin[i]/qqLin[i];
     }
     sigma2 = XXLin[Nfft-1]+YYLin[Nfft-1];
+    // Do the shear functions.
+      XsLin.resize(Nfft);
+      YsLin.resize(Nfft);
+      VVLin.resize(Nfft);
+     chiLin.resize(Nfft);
+    zetaLin.resize(Nfft);
+    for (int i=0; i<Nfft; ++i) {
+      double  J2 = 2./15.*xi1m1[i]-1./5.*xi3m1[i];
+      double  J3 =-1./ 5.*xi1m1[i]-1./5.*xi3m1[i];
+      double  J4 = xi3m1[i];
+        XsLin[i] = 4*J3*J3;
+        YsLin[i] = 6*J2*J2+8*J2*J3+4*J2*J4+4*J3*J3+8*J3*J4+2*J4*J4;
+        VVLin[i] = 4.*xi2p0[i]*J2;
+       chiLin[i] = 4./3.*xi2p0[i]*xi2p0[i];
+      zetaLin[i] = 2*(4./45.*xi0m0[i]*xi0m0[i]+8./63.*xi2p0[i]*xi2p0[i]+
+		      8./35.*xi4p0[i]*xi4p0[i]);
+    }
+    shear_sig2 = XsLin[Nfft-1]+YsLin[Nfft-1];
   }
   void printQfuncs(const double qmin=1e-2, const double qmax=500.) {
     std::cout<<"# Linear theory, q-dependent functions."<<std::endl;
@@ -465,7 +550,8 @@ public:
                  <<UULin[i]
                  <<std::endl;
   }
-  double power(const double kk, const double b1=0, const double b2=0) const {
+  double power(const double kk,
+               const double b1=0, const double b2=0, const double bs=0) const {
     // Returns the Zeldovich power spectrum at kk.
     const double k2=kk*kk;
     const int Lmax=8;
@@ -485,24 +571,35 @@ public:
         for (int i=0; i<Nfft; ++i) {
           double U2  = UULin[i]*UULin[i];
           double tmp = -0.5*k2*(XXLin[i]+YYLin[i]-sigma2);
-          fftlog.fq[i] = expm1(tmp) + exp(tmp)*(
+          fftlog.fq[i] =(expm1(tmp) + exp(tmp)*(
                          b1* 1*( 0 ) +
                          b2* 1*( -k2*U2 ) +
                          b1*b1*( xiLin[i]-k2*U2 ) +
                          b1*b2*( 0 ) +
-                         b2*b2*( 0.5*xiLin[i]*xiLin[i] ) ) * ap[i];
+                         b2*b2*( 0.5*xiLin[i]*xiLin[i] ) +
+			 bs* 1*( -k2*(XsLin[i]+YsLin[i]) ) +
+			 b1*bs*( 0 ) +
+			 b2*bs*(  chiLin[i] ) +
+			 bs*bs*( zetaLin[i] ) 
+			 ) ) * ap[i] + bs*1*k2*shear_sig2*ap[i];
         }
       }
       else {
         for (int i=0; i<Nfft; ++i) {
           double U2  = UULin[i]*UULin[i];
           double tmp = -0.5*k2*(XXLin[i]+YYLin[i]-sigma2);
+	  double fac = 1-2*ell/k2/YYLin[i];
           fftlog.fq[i] = exp(tmp) * pow(YqLin[i],double(ell))*(1 +
                          b1* 1*( -2*UULin[i]/YqLin[i] ) +
                          b2* 1*( (2*ell/YYLin[i]-k2)*U2 ) +
                          b1*b1*( xiLin[i]+(2*ell/YYLin[i]-k2)*U2 ) +
                          b1*b2*( -2*xiLin[i]*UULin[i]/YqLin[i] ) +
-                         b2*b2*( 0.5*xiLin[i]*xiLin[i] ) ) * ap[i];
+                         b2*b2*( 0.5*xiLin[i]*xiLin[i] ) +
+			 bs* 1*( -k2*(XsLin[i]+fac*YsLin[i]) ) +
+			 b1*bs*( -2*VVLin[i]/YqLin[i] ) +
+			 b2*bs*(  chiLin[i] ) +
+			 bs*bs*( zetaLin[i] )
+			 ) * ap[i];
         }
       }
       fftlog.sph(ell,false);
@@ -549,11 +646,14 @@ int	main(int argc, char **argv)
     double kk = exp( log(1e-2)+(i+0.5)*log(3.0/1e-2)/Nk );
     std::cout<<std::scientific<<std::setw(15)<<std::setprecision(5)<<kk
              <<std::scientific<<std::setw(15)<<std::setprecision(5)
-             <<zel.power(kk,0.0,0.0)
+             <<zel.power(kk,0.0,0.0,0.0)
              <<std::scientific<<std::setw(15)<<std::setprecision(5)
-             <<zel.power(kk,1.0,0.0)
+             <<zel.power(kk,1.0,0.0,0.0)
              <<std::scientific<<std::setw(15)<<std::setprecision(5)
-             <<zel.power(kk,0.0,1.0)<<std::endl;
+             <<zel.power(kk,1.0,1.0,0.0)
+             <<std::scientific<<std::setw(15)<<std::setprecision(5)
+             <<zel.power(kk,1.0,1.0,1.0)
+	     <<std::endl;
   }
 
   return(0);
