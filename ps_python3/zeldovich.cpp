@@ -300,6 +300,7 @@ protected:
   std::vector<double>	kLin,pLin;
   std::vector<double>	kval,Pval;
   double dkinv;
+  bool   doneQfuncs;
   void readPowerSpectrum(const char fname[]) {
     // Load the linear power spectrum from a file, and expand it out
     // if necessary.  This is stored log-log.
@@ -338,7 +339,7 @@ protected:
     dkinv = NkTable/(kLin[NkTable-1]-kLin[0]);
   }
   void makePkarray() {
-    const int Npad=256;
+    const int    Npad=256;
     const double lnKmin=log(1e-5);
     const double lnKmax=log(1e5 );
     const double dlnk=(lnKmax-lnKmin)/(Nfft-2*Npad);
@@ -357,6 +358,7 @@ public:
   std::vector<double>	XsLin,YsLin,VVLin,zetaLin,chiLin;
   double sigma2,shear_sig2;
   Zeldovich(const char fname[]) {
+    doneQfuncs = false;
     kval.resize(Nfft);
     Pval.resize(Nfft);
     readPowerSpectrum(fname);
@@ -400,8 +402,8 @@ public:
     // First compute the xi_ell^n:
     std::vector<double>	xi0m0(Nfft),xi0m2(Nfft),xi1m1(Nfft),xi2m2(Nfft);
     // extra xi_ell^n for shear terms:
-    std::vector<double>	xi2p0(Nfft),xi4p0(Nfft),xi1p1(Nfft),xi3p1(Nfft);
-    std::vector<double>	xi3m1(Nfft),xi0p2(Nfft),xi2p2(Nfft);
+    std::vector<double>	xi2p0(Nfft),xi4p0(Nfft),xi1p1(Nfft);
+    std::vector<double>	xi3p1(Nfft),xi3m1(Nfft),xi0p2(Nfft);
     // We could in principle do this with a std::map to keep all of
     // the xi_ell_n arrays neatly organized, but this seemed easier
     // at the time:
@@ -411,6 +413,7 @@ public:
       fftlog.sph(0,true);
       // and sample onto a regular grid.
       Spline ss(fftlog.ks,fftlog.fq);
+#pragma omp parallel for shared(qqLin,ss,xi0m0)
       for (int i=0; i<Nfft; ++i)
         xi0m0[i] = ss(qqLin[i]);
     }
@@ -420,6 +423,7 @@ public:
         fftlog.fq[i] = Pval[i] * km2[i];
       fftlog.sph(0,true);
       Spline ss(fftlog.ks,fftlog.fq);
+#pragma omp parallel for shared(qqLin,ss,xi0m2)
       for (int i=0; i<Nfft; ++i)
         xi0m2[i] = ss(qqLin[i]);
     }
@@ -429,6 +433,7 @@ public:
         fftlog.fq[i] = Pval[i] / kval[i];
       fftlog.sph(1,true);
       Spline ss(fftlog.ks,fftlog.fq);
+#pragma omp parallel for shared(qqLin,ss,xi1m1)
       for (int i=0; i<Nfft; ++i)
         xi1m1[i] = ss(qqLin[i]);
     }
@@ -438,6 +443,7 @@ public:
         fftlog.fq[i] = Pval[i] * km2[i];
       fftlog.sph(2,true);
       Spline ss(fftlog.ks,fftlog.fq);
+#pragma omp parallel for shared(qqLin,ss,xi2m2)
       for (int i=0; i<Nfft; ++i)
         xi2m2[i] = ss(qqLin[i]);
     }
@@ -447,6 +453,7 @@ public:
       fftlog.fq = Pval;
       fftlog.sph(2,true);
       Spline ss(fftlog.ks,fftlog.fq);
+#pragma omp parallel for shared(qqLin,ss,xi2p0)
       for (int i=0; i<Nfft; ++i)
         xi2p0[i] = ss(qqLin[i]);
     }
@@ -455,17 +462,9 @@ public:
       fftlog.fq = Pval;
       fftlog.sph(4,true);
       Spline ss(fftlog.ks,fftlog.fq);
+#pragma omp parallel for shared(qqLin,ss,xi4p0)
       for (int i=0; i<Nfft; ++i)
         xi4p0[i] = ss(qqLin[i]);
-    }
-    // ell=0; n=+2:
-    if (true) {
-      for (int i=0; i<Nfft; ++i)
-        fftlog.fq[i] = Pval[i] * kp2[i];
-      fftlog.sph(0,true);
-      Spline ss(fftlog.ks,fftlog.fq);
-      for (int i=0; i<Nfft; ++i)
-        xi0p2[i] = ss(qqLin[i]);
     }
     // ell=1; n=+1:
     if (true) {
@@ -473,6 +472,7 @@ public:
         fftlog.fq[i] = Pval[i] * kval[i];
       fftlog.sph(1,true);
       Spline ss(fftlog.ks,fftlog.fq);
+#pragma omp parallel for shared(qqLin,ss,xi1p1)
       for (int i=0; i<Nfft; ++i)
         xi1p1[i] = ss(qqLin[i]);
     }
@@ -482,6 +482,7 @@ public:
         fftlog.fq[i] = Pval[i] * kval[i];
       fftlog.sph(3,true);
       Spline ss(fftlog.ks,fftlog.fq);
+#pragma omp parallel for shared(qqLin,ss,xi3p1)
       for (int i=0; i<Nfft; ++i)
         xi3p1[i] = ss(qqLin[i]);
     }
@@ -491,8 +492,19 @@ public:
         fftlog.fq[i] = Pval[i] / kval[i];
       fftlog.sph(3,true);
       Spline ss(fftlog.ks,fftlog.fq);
+#pragma omp parallel for shared(qqLin,ss,xi3m1)
       for (int i=0; i<Nfft; ++i)
         xi3m1[i] = ss(qqLin[i]);
+    }
+    // ell=0; n=+2:
+    if (true) {
+      for (int i=0; i<Nfft; ++i)
+        fftlog.fq[i] = Pval[i] * kp2[i];
+      fftlog.sph(0,true);
+      Spline ss(fftlog.ks,fftlog.fq);
+#pragma omp parallel for shared(qqLin,ss,xi0p2)
+      for (int i=0; i<Nfft; ++i)
+        xi0p2[i] = ss(qqLin[i]);
     }
     // Now set up the "q" functions.
     XXLin.resize(Nfft);
@@ -500,6 +512,7 @@ public:
     xiLin.resize(Nfft);
     UULin.resize(Nfft);
     YqLin.resize(Nfft);
+#pragma omp parallel for shared(XXLin,YYLin,xiLin,UULin,YqLin,xi0m2,xi2m2,xi0m0,xi1m1)
     for (int i=0; i<Nfft; ++i) {
       XXLin[i] = 2./3.*( xi0m2[0]-xi0m2[i]-xi2m2[i]);
       YYLin[i] = 2*xi2m2[i];
@@ -526,8 +539,10 @@ public:
 		      8./35.*xi4p0[i]*xi4p0[i]);
     }
     shear_sig2 = XsLin[Nfft-1]+YsLin[Nfft-1];
+    doneQfuncs = true;
   }
-  void printQfuncs(const double qmin=1e-2, const double qmax=500.) {
+  void printQfuncs() {
+    if (!doneQfuncs) calcQfuncs();
     std::cout<<"# Linear theory, q-dependent functions."<<std::endl;
     std::cout<<"# Sigma2="<<sigma2<<std::endl;
     std::cout<<"# "
@@ -551,8 +566,10 @@ public:
                  <<std::endl;
   }
   double power(const double kk,
-               const double b1=0, const double b2=0, const double bs=0) const {
+               const double b1=0, const double b2=0,
+	       const double bs=0, const double alpha=0) const {
     // Returns the Zeldovich power spectrum at kk.
+    if (!doneQfuncs) return(0.0); // Since method is const, can't make Qfuncs.
     const double k2=kk*kk;
     const int Lmax=8;
     FFTlog<Nfft> fftlog(qqLin,Lmax);
@@ -619,7 +636,10 @@ public:
       pk  *= pow(kk,double(ell));
       ret += pk;
     }
-    ret *= 4*M_PI*exp(-0.5*k2*sigma2);
+    ret *= 4*M_PI;
+    // Add in an approximation to the EFT term.
+    ret += alpha*(k2*sigma2)*linearPk(kk);
+    ret *= exp(-0.5*k2*sigma2);
     return(ret);
   }
 };
@@ -631,28 +651,29 @@ public:
 
 int	main(int argc, char **argv)
 {
-  if (argc!=2) {
-    std::cout<<"Usage: zeldovich <pkfile>"<<std::endl;
+  if (argc!=6) {
+    std::cout<<"Usage: zeldovich <pkfile> <b1> <b2> <bs> <alpha>"<<std::endl;
     exit(1);
   }
   Zeldovich zel(argv[1]);
+  double b1 = atof(argv[2]);
+  double b2 = atof(argv[3]);
+  double bs = atof(argv[4]);
+  double alpha = atof(argv[5]);
 
   zel.calcQfuncs();
   //zel.printQfuncs();
 
   // Just do an example here.
+  std::cout<<"# Zeldovich (real-space) power spectrum."<<std::endl;
+  std::cout<<"# b1="<<b1<<", b2="<<b2
+           <<", bs="<<bs<<", alpha="<<alpha<<std::endl;
   const int Nk=100;
   for (int i=0; i<Nk; ++i) {
     double kk = exp( log(1e-2)+(i+0.5)*log(3.0/1e-2)/Nk );
     std::cout<<std::scientific<<std::setw(15)<<std::setprecision(5)<<kk
              <<std::scientific<<std::setw(15)<<std::setprecision(5)
-             <<zel.power(kk,0.0,0.0,0.0)
-             <<std::scientific<<std::setw(15)<<std::setprecision(5)
-             <<zel.power(kk,1.0,0.0,0.0)
-             <<std::scientific<<std::setw(15)<<std::setprecision(5)
-             <<zel.power(kk,1.0,1.0,0.0)
-             <<std::scientific<<std::setw(15)<<std::setprecision(5)
-             <<zel.power(kk,1.0,1.0,1.0)
+             <<zel.power(kk,b1,b2,bs,alpha)
 	     <<std::endl;
   }
 
