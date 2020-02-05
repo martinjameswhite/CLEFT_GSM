@@ -49,3 +49,9 @@ compute power spectra at 200 k-values.
 
 
 We have also provided a C++ version of the tree-level code (zeldovich.cpp), though this is far less thoroughly debugged and less robust in its current implementation (see test_cpp.sh for an example) largely because it does not careful treat extrapolation of "short" P(k) input files.  
+
+
+A fast Python package (VelociLPTors) to compute real- and redshift-space
+power spectra and correlation functions using LPT is also available at
+
+https://github.com/sfschen/velocilptors
