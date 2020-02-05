@@ -29,3 +29,8 @@ Modeling CMB Lensing Cross Correlations with CLEFT
 JCAP, 08(2017)009, [https://arxiv.org/abs/1706.03173]
 
 This code is available in the ps_python3 directory.
+
+A fast Python package (VelociLPTors) to compute real- and redshift-space
+power spectra and correlation functions using LPT is also available at
+
+https://github.com/sfschen/velocilptors
