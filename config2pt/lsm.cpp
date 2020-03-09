@@ -56,7 +56,7 @@ LSM::calcEfuncs(const double q) {
       sum9 += k2*wt*(R1*j1)*(-5./21.);			// U^{(3)}
       sum10+= k2*wt*(Q8*j1)*(-3./7.);			// U_{20}^{(2)}
       sum11+= k2*wt*((R1+R2)*j1)*(-6./7.);		// U_{11}^{(2)}
-      sum12+= k2*wt*(Qs*j1)*(-2./7.)*ap;		// Shear term
+      sum12+= k2*wt*(Qs*j1)*(-1./7.)*ap;		// Shear term
     }
     sum6 += sumS;
     sum7 += sumS;
@@ -532,7 +532,7 @@ LSM::dvsPair(const double rval)
                     double upsilon2= qh[i]*qh[2]*(3*qf[6]*qf[6]+4*qf[6]*qf[7]+
                                     2*qf[6]*qf[8]+2*qf[7]*qf[7]+4*qf[7]*qf[8]+
                                       qf[8]*qf[8]) + (i==2)*2*qf[7]*qf[7];
-                    shear_v -= 2*g[i]*upsilon2;
+                    shear_v -= 4*g[i]*upsilon2;
                 }
                 double V12 =qf[9]*gq;
                 double V12z=qf[9]*qh[2];
