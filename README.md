@@ -34,7 +34,7 @@ A fast, pure Python package (VelociLEPTors) to compute real- and
 redshift-space power spectra and correlation functions using both
 EPT and LPT is also available at
 
-https://github.com/sfschen/velocilptors
+https://github.com/sfschen/velocileptors
 
 This package has all of the functionality of CLEFT_GSM, plus an extended
 bias expansion and Fourier-space statistics.
